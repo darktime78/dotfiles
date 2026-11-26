@@ -121,6 +121,23 @@ wine-game run homm3                            # or "homm3 (Wine)" in the launch
 Each game lives in `~/Games/NAME` with its own Wine prefix. Discs, patches, mods, window
 mode, Russian editions: [docs/wine-games.md](docs/wine-games.md).
 
+## Only the Neovim config
+
+The config lives in `common/nvim/.config/nvim` (also used by the nvim-cpp container).
+For a machine that needs only Neovim, either:
+
+* **its own repository**: `tools/nvim-repo.sh push` sends that folder, with its
+  history, to `github.com/darktime78/nvim-cpp` (create it empty first). Then anywhere:
+  `git clone https://github.com/darktime78/nvim-cpp ~/.config/nvim`. Changes made over
+  there come back with `tools/nvim-repo.sh pull`. Run `push` after changing the config.
+* **no second repository**: check out only that folder of the dotfiles:
+
+  ```sh
+  git clone --filter=blob:none --sparse https://github.com/darktime78/dotfiles ~/.dotfiles
+  git -C ~/.dotfiles sparse-checkout set common/nvim
+  ln -s ~/.dotfiles/common/nvim/.config/nvim ~/.config/nvim   # git pull keeps it up to date
+  ```
+
 ## Upstream
 
 New commits of HardDie's repo are brought into this layout with
