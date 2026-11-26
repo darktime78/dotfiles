@@ -63,7 +63,7 @@ macos/     AeroSpace, SketchyBar
 docker/    images/ (one folder per app) and update.sh
 install/   arch-bootstrap.sh, packages/ (lists per system and profile)
 tools/     make_bars.py, check_parity.py, sync_upstream.py
-docs/      keys.md
+docs/      keys.md, wine-games.md
 ```
 
 Each folder in `common/ linux/ wayland/ i3/ macos/` mirrors `$HOME`:
@@ -104,6 +104,17 @@ docker-images-update nvim-cpp                       # Neovim C++ IDE + LocalAI (
 ```
 
 The `docker-update.timer` rebuilds the images you have once a week, on AC power only.
+
+### Old Windows games (Wine)
+
+```sh
+docker-images-update wine                      # once
+wine-game install homm3 ~/Downloads/HoMM3.iso  # disc -> drive D:, runs its setup
+wine-game run homm3                            # or "homm3 (Wine)" in the launcher
+```
+
+Each game lives in `~/Games/NAME` with its own Wine prefix. Discs, patches, mods, window
+mode, Russian editions: [docs/wine-games.md](docs/wine-games.md).
 
 ## Upstream
 

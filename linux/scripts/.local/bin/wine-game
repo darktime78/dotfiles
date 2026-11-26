@@ -1,0 +1,391 @@
+#!/bin/bash
+#
+# wine-game: old Windows games in Docker (image my/wine). Install from a CD image
+# (.iso) or an installer (.exe, e.g. from GOG). Each game gets its own Wine prefix in
+# ~/Games/NAME, a virtual CD drive D: with the disc, and an entry in the launcher.
+#
+#   wine-game install NAME FILE    FILE: game.iso, or setup.exe
+#   wine-game run NAME             play (also from the launcher, $mod+d)
+#   wine-game disc NAME FILE.iso   put another disc into drive D: (disc 2, or the
+#                                  CD the game asks for); works while it runs
+#   wine-game exe NAME FILE.exe    run another program in that game's prefix:
+#                                  official patch, HD mod, map editor ...
+#   wine-game set NAME exe 'C:\Program Files\Game\game.exe'   what "run" starts
+#   wine-game set NAME desktop 1024x768   play in a window of that size (off: off)
+#   wine-game set NAME args "-nointro"    arguments for the game
+#   wine-game set NAME lang ru_RU.UTF-8   language / codepage (default: yours)
+#   wine-game winecfg NAME         Wine settings for that game
+#   wine-game tricks NAME VERB...  winetricks, e.g. tricks NAME corefonts
+#   wine-game shell NAME           bash in the container, inside the prefix
+#   wine-game list                 your games
+#   wine-game remove NAME          delete the game, its prefix and its discs
+#
+# Build the image once: docker-images-update wine
+# More: docs/wine-games.md in the dotfiles.
+
+GAMES=${WINE_GAMES:-$HOME/Games}
+IMAGE=my/wine
+APPS=$HOME/.local/share/applications
+me=$(readlink -f "$0")
+
+die() {
+	echo "wine-game: $*" >&2
+	[[ -t 2 ]] || notify-send -u critical "wine-game" "$*" 2>/dev/null
+	exit 1
+}
+usage() { sed -n '3,/^$/p' "$me" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+check_name() {
+	[[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || die "game name: letters, digits, - _ . (got '$1')"
+}
+need_game() {
+	check_name "$1"
+	[[ -d $GAMES/$1/prefix ]] || die "no game '$1' (wine-game list)"
+}
+need_docker() {
+	docker info >/dev/null 2>&1 || die "Docker is not running, or you are not in the docker group"
+	docker image inspect "$IMAGE" >/dev/null 2>&1 || die "no image $IMAGE yet: docker-images-update wine"
+	[[ -n ${DISPLAY:-} ]] || die "no DISPLAY: start it from your sway / i3 session"
+}
+
+# host path <-> path in the container (~/Games is /games there)
+to_c() { echo "/games/${1#"$GAMES"/}"; }
+to_h() { echo "$GAMES/${1#/games/}"; }
+
+conf() { echo "$GAMES/$1/game.conf"; }
+load() { # NAME: read game.conf
+	EXE="" DESKTOP="" ARGS="" GLANG=""
+	# shellcheck source=/dev/null
+	[[ -r $(conf "$1") ]] && source "$(conf "$1")"
+	return 0
+}
+save() { # NAME
+	{
+		echo "# wine-game settings for $1 (wine-game set $1 ...)"
+		printf 'EXE=%q\nDESKTOP=%q\nARGS=%q\nGLANG=%q\n' "$EXE" "$DESKTOP" "$ARGS" "$GLANG"
+	} >"$(conf "$1")"
+}
+
+# dk NAME MODE [--name] CMD...: run CMD in the image for game NAME
+#   MODE -it (in this terminal) or -d (in the background, for "run")
+#   SRC=folder is mounted read-only at /media/src (where the .iso / .exe is)
+dk() {
+	local game=$1 mode=$2 extra=()
+	shift 2
+	if [[ $1 == --name ]]; then extra+=(--name "wine-$game"); shift; fi
+	[[ -t 0 || $mode == -d ]] || mode=-i
+	load "$game"
+	if [[ -n ${XAUTHORITY:-} && -r $XAUTHORITY ]]; then # i3 / startx
+		extra+=(-v "$XAUTHORITY:/tmp/.Xauthority:ro" -e XAUTHORITY=/tmp/.Xauthority)
+	fi
+	[[ -n ${SRC:-} ]] && extra+=(-v "$SRC:/media/src:ro")
+	[[ -n $DESKTOP ]] && extra+=(-e "WINE_DESKTOP=$DESKTOP")
+	local lang=${GLANG:-${LANG:-en_US.UTF-8}}
+	[[ $lang == ru_RU* ]] || [[ $lang == en_US* ]] || lang=en_US.UTF-8 # locales in the image
+
+	docker run --rm "$mode" "${extra[@]}" \
+		--device /dev/dri \
+		-v /dev/shm:/dev/shm \
+		-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY="$DISPLAY" \
+		-e XDG_RUNTIME_DIR=/tmp -v "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse:/tmp/pulse" \
+		-v /etc/machine-id:/etc/machine-id:ro -v /etc/localtime:/etc/localtime:ro \
+		-v "$GAMES:/games" -w "/games/$game" \
+		-e WINEPREFIX="/games/$game/prefix" -e LANG="$lang" \
+		"$IMAGE" "$@"
+}
+
+running() { [[ $(docker container inspect -f '{{.State.Running}}' "wine-$1" 2>/dev/null) == true ]]; }
+
+# ---------------------------------------------------------------- discs
+# Each .iso is unpacked once to ~/Games/NAME/discs/<file name>; discs/current points
+# to the one in drive D:. The disc label goes into .windows-label, so games that
+# check the CD by its name find it.
+disc() { # NAME FILE.iso
+	local game=$1 iso dir label
+	iso=$(readlink -f "$2") || die "no file $2"
+	case ${iso,,} in
+	*.iso) ;;
+	*.bin | *.cue | *.img) die "$2: convert it to .iso first, e.g. bchunk game.bin game.cue game (then game01.iso)" ;;
+	*.mdf | *.mds) die "$2: convert it to .iso first: mdf2iso game.mdf game.iso" ;;
+	*.nrg) die "$2: convert it to .iso first: nrg2iso game.nrg game.iso" ;;
+	*) die "$2 is not an .iso" ;;
+	esac
+	[[ -r $iso ]] || die "can't read $iso"
+	dir=$(basename "${iso%.*}")
+	dir=${dir//[^A-Za-z0-9_.-]/_}
+	# volume label: bytes 32808..32839 of an ISO 9660 image
+	label=$(dd if="$iso" bs=1 skip=32808 count=32 2>/dev/null | tr -d '\0' | sed 's/ *$//')
+	if [[ ! -d $GAMES/$game/discs/$dir ]]; then
+		echo "unpacking $(basename "$iso") (label: ${label:-none}) ..."
+		mkdir -p "$GAMES/$game/discs"
+		SRC=$(dirname "$iso") dk "$game" -it bash -c '
+			set -e; mkdir -p "discs/$1.tmp"
+			bsdtar -xf "/media/src/$2" -C "discs/$1.tmp"
+			chmod -R u+w "discs/$1.tmp"
+			printf "%s\n" "$3" > "discs/$1.tmp/.windows-label"
+			mv "discs/$1.tmp" "discs/$1"' _ "$dir" "$(basename "$iso")" "$label" ||
+			{ rm -rf "$GAMES/$game/discs/$dir.tmp"; die "could not unpack $iso"; }
+	fi
+	ln -sfn "$dir" "$GAMES/$game/discs/current"
+	echo "drive D: $dir${label:+ (label $label)}"
+}
+
+# setup program on an unpacked disc: autorun.inf "open=", else setup.exe / install.exe
+find_setup() { # disc folder (host)
+	local d=${1%/} f open
+	f=$(find -H "$d" -maxdepth 1 -iname autorun.inf | head -1)
+	if [[ -n $f ]]; then
+		open=$(tr -d '\r' <"$f" | sed -n 's/^[[:space:]]*[Oo][Pp][Ee][Nn][[:space:]]*=[[:space:]]*//p' | head -1)
+		open=${open%% *}
+		open=${open//\\//}
+		if [[ -n $open ]]; then
+			f=$(find -H "$d" -maxdepth 3 -ipath "$d/$open" | head -1)
+			[[ -n $f ]] && { echo "$f"; return; }
+		fi
+	fi
+	for f in setup.exe install.exe autorun.exe; do
+		f=$(find -H "$d" -maxdepth 2 -iname "$f" | head -1)
+		[[ -n $f ]] && { echo "$f"; return; }
+	done
+}
+
+# ---------------------------------------------------------------- game exe
+# 'C:\Games\X\x.exe' or a unix path -> path in the container; case-insensitive like Windows
+resolve_exe() { # NAME PATH
+	local game=$1 p=$2 h
+	case $p in
+	[A-Za-z]:\\* | [A-Za-z]:/*)
+		local drive=${p:0:1}
+		p=${p:2}
+		p=${p//\\//}
+		case ${drive,,} in
+		c) h=$GAMES/$game/prefix/drive_c$p ;;
+		d) [[ -f $GAMES/$game/discs/current$p ]] && { echo "$2"; return; }
+			h=$GAMES/$game/discs/current$p ;;
+		*) die "only drive C: or D:" ;;
+		esac
+		;;
+	/games/*) h=$(to_h "$p") ;;
+	*) h=$(readlink -f "$p") ;;
+	esac
+	if [[ ! -f $h ]]; then # same name, other upper / lower case
+		local found
+		found=$(find "$GAMES/$game" -ipath "$h" -type f 2>/dev/null | head -1)
+		[[ -n $found ]] || die "not found: $2"
+		h=$found
+	fi
+	[[ $h == "$GAMES/$game/"* ]] || die "$2 is not inside $GAMES/$game"
+	to_c "$h"
+}
+
+set_exe() { # NAME container-path
+	local game=$1
+	load "$game"
+	EXE=$2
+	save "$game"
+	echo "game: ${EXE#/games/"$game"/prefix/drive_c/}"
+	launcher "$game"
+}
+
+# launcher entry (rofi $mod+d), with the game's own icon when it has one
+launcher() { # NAME
+	local game=$1 icon=wine
+	load "$game"
+	[[ -n $EXE ]] || return 0
+	if [[ ! -f $GAMES/$game/icon.png ]] && docker image inspect "$IMAGE" >/dev/null 2>&1; then
+		dk "$game" -i bash -c '
+			cd /tmp && wrestool -x -t 14 "$1" -o icon.ico 2>/dev/null &&
+			icotool -x icon.ico 2>/dev/null && f=$(ls -S icon_*.png 2>/dev/null | head -1) &&
+			[ -n "$f" ] && cp "$f" "/games/$2/icon.png"' _ "$EXE" "$game" </dev/null >/dev/null 2>&1
+	fi
+	[[ -f $GAMES/$game/icon.png ]] && icon=$GAMES/$game/icon.png
+	mkdir -p "$APPS"
+	cat >"$APPS/wine-game-$game.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$game (Wine)
+Icon=$icon
+Exec=$HOME/.local/bin/wine-game run $game
+Terminal=false
+Categories=Game;
+EOF
+	update-desktop-database "$APPS" 2>/dev/null
+	return 0
+}
+
+# exe files the install created (newer than the marker), most likely game first
+new_exes() { # NAME marker
+	find "$GAMES/$1/prefix/drive_c" -iname '*.exe' -newer "$2" \
+		! -ipath '*/windows/*' ! -ipath '*/Common Files/*' ! -ipath '*/Installshield*' \
+		! -iname 'unins*' ! -iname 'setup*' ! -iname 'install*' ! -iname '*redist*' \
+		! -iname 'dxsetup*' ! -iname 'vcredist*' ! -iname 'dotnet*' ! -iname '*update*' \
+		-printf '%s\t%p\n' 2>/dev/null | sort -rn | cut -f2
+}
+
+pick_exe() { # NAME marker
+	local game=$1 list=() i n
+	mapfile -t list < <(new_exes "$game" "$2")
+	n=${#list[@]}
+	if ((n == 0)); then
+		echo "no new program found: set it with  wine-game set $game exe 'C:\\...\\game.exe'"
+		return
+	fi
+	if ((n == 1)) || [[ ! -t 0 ]]; then
+		set_exe "$game" "$(to_c "${list[0]}")"
+		((n > 1)) && echo "(more programs: wine-game set $game exe ...)"
+		return
+	fi
+	echo "Which program starts the game?"
+	for i in "${!list[@]}"; do
+		printf '  %d) %s\n' $((i + 1)) "${list[$i]#"$GAMES/$game/prefix/drive_c/"}"
+		((i == 14)) && break
+	done
+	read -r -p "number [1]: " i
+	i=${i:-1}
+	[[ $i =~ ^[0-9]+$ ]] && ((i >= 1 && i <= n)) || i=1
+	set_exe "$game" "$(to_c "${list[$((i - 1))]}")"
+}
+
+# ---------------------------------------------------------------- commands
+cmd=${1:-}
+shift
+case $cmd in
+install)
+	(($# == 2)) || usage 2
+	game=$1 file=$2
+	check_name "$game"
+	need_docker
+	[[ -f $file ]] || die "no file $file"
+	dir=$GAMES/$game
+	[[ -d $dir/prefix ]] && die "'$game' exists already (wine-game remove $game, or another name)"
+	mkdir -p "$dir"
+	save "$game"
+
+	echo "== Wine prefix: $dir/prefix"
+	dk "$game" -it wineboot -i >/dev/null 2>&1 || die "wineboot failed"
+
+	case ${file,,} in
+	*.exe)
+		setup=/media/src/$(basename "$file")
+		export SRC
+		SRC=$(dirname "$(readlink -f "$file")")
+		;;
+	*)
+		echo "== Disc"
+		disc "$game" "$file"
+		# drive D: is a CD-ROM drive with the unpacked disc
+		dk "$game" -it bash -c '
+			ln -sfn ../../discs/current "$WINEPREFIX/dosdevices/d:"
+			wine reg add "HKLM\\Software\\Wine\\Drives" /v d: /t REG_SZ /d cdrom /f >/dev/null' ||
+			die "could not set up drive D:"
+		s=$(find_setup "$dir/discs/current")
+		[[ -n $s ]] || die "no setup program on the disc: wine-game exe $game 'D:\\<setup>.exe'"
+		# started from drive D:, as from a real CD (some installers check that)
+		s=${s#"$dir/discs/current/"}
+		setup="D:\\${s//\//\\}"
+		;;
+	esac
+
+	marker=$dir/.installed-after
+	touch "$marker"
+	echo "== Setup: ${setup##*[/\\]}   (install to the suggested folder on C:)"
+	dk "$game" -it wine-run "$setup"
+	unset SRC
+	echo "== Game"
+	pick_exe "$game" "$marker"
+	rm -f "$marker"
+	echo
+	echo "play:   wine-game run $game   (or \"$game (Wine)\" in the launcher)"
+	echo "disc 2: wine-game disc $game disc2.iso"
+	echo "patch:  wine-game exe $game patch.exe"
+	;;
+run)
+	(($# == 1)) || usage 2
+	game=$1
+	need_game "$game"
+	need_docker
+	load "$game"
+	[[ -n $EXE ]] || die "no program set: wine-game set $game exe 'C:\\...\\game.exe'"
+	running "$game" && die "$game is running already"
+	docker rm "wine-$game" >/dev/null 2>&1
+	# shellcheck disable=SC2086 # ARGS is a list of words
+	dk "$game" -d --name wine-run "$EXE" $ARGS >/dev/null || die "could not start $game"
+	;;
+disc)
+	(($# == 2)) || usage 2
+	need_game "$1"
+	need_docker
+	disc "$1" "$2"
+	;;
+exe)
+	(($# >= 2)) || usage 2
+	game=$1 file=$2
+	shift 2
+	need_game "$game"
+	need_docker
+	if [[ -f $file && $(readlink -f "$file") != "$GAMES/$game/"* ]]; then
+		SRC=$(dirname "$(readlink -f "$file")") dk "$game" -it wine-run "/media/src/$(basename "$file")" "$@"
+	else
+		dk "$game" -it wine-run "$(resolve_exe "$game" "$file")" "$@"
+	fi
+	;;
+set)
+	(($# >= 2)) || usage 2
+	game=$1 key=$2 val=${3:-}
+	need_game "$game"
+	load "$game"
+	case $key in
+	exe) [[ -n $val ]] || usage 2; set_exe "$game" "$(resolve_exe "$game" "$val")"; exit ;;
+	desktop)
+		[[ $val == off || $val == "" ]] && val=""
+		[[ -z $val || $val =~ ^[0-9]+x[0-9]+$ ]] || die "desktop: WIDTHxHEIGHT or off"
+		DESKTOP=$val ;;
+	args) ARGS=$val ;;
+	lang) GLANG=$val ;;
+	*) usage 2 ;;
+	esac
+	save "$game"
+	echo "$game: $key = ${val:-off}"
+	;;
+winecfg)
+	need_game "${1:-}"
+	need_docker
+	dk "$1" -it winecfg
+	;;
+tricks)
+	(($# >= 2)) || usage 2
+	game=$1
+	shift
+	need_game "$game"
+	need_docker
+	dk "$game" -it winetricks -q "$@"
+	;;
+shell)
+	need_game "${1:-}"
+	need_docker
+	dk "$1" -it bash
+	;;
+list)
+	[[ -d $GAMES ]] || { echo "no games yet"; exit 0; }
+	for c in "$GAMES"/*/game.conf; do
+		[[ -e $c ]] || continue
+		game=$(basename "$(dirname "$c")")
+		load "$game"
+		state=""
+		running "$game" && state=" (running)"
+		printf '%-16s %s%s%s\n' "$game" "${EXE##*/}" "${DESKTOP:+  window $DESKTOP}" "$state"
+	done
+	;;
+remove)
+	need_game "${1:-}"
+	running "$1" && die "$1 is running"
+	du -sh "$GAMES/$1" 2>/dev/null
+	read -r -p "Delete $GAMES/$1 (saves too)? [y/N] " ok
+	[[ $ok == [yY]* ]] || exit 0
+	chmod -R u+w "$GAMES/$1" 2>/dev/null
+	rm -rf "${GAMES:?}/$1" "$APPS/wine-game-$1.desktop"
+	echo "removed $1"
+	;;
+-h | --help | help | "") usage ;;
+*) usage 2 ;;
+esac

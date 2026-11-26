@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# wine-run EXE [ARGS...]: start a Windows program the way old games like it:
+#   - EXE as a Windows path (D:\SETUP.EXE) or a path in the container
+#   - in its own folder (many look for their data files in the current folder)
+#   - in a virtual desktop when WINE_DESKTOP is set (e.g. 1024x768): games that switch
+#     the screen resolution then get a window of that size instead
+# Waits until every Wine process has ended (installers start child processes).
+
+case $1 in
+[A-Za-z]:*) win=$1 unix=$(winepath -u "$1" 2>/dev/null) ;;
+*) unix=$1 win=$(winepath -w "$1" 2>/dev/null) ;;
+esac
+shift
+[[ -f $unix && -n $win ]] || { echo "wine-run: no such file: $unix" >&2; exit 1; }
+cd "$(dirname "$unix")" || exit 1
+
+if [[ -n ${WINE_DESKTOP:-} ]]; then
+	wine explorer "/desktop=game,$WINE_DESKTOP" "$win" "$@"
+else
+	wine "$win" "$@"
+fi
+rc=$?
+wineserver -w
+exit $rc

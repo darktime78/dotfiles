@@ -23,7 +23,7 @@ The last column says what macOS does instead, if it differs.
 | `$mod+r` | resize mode: `j k i l` by 10, arrows by 1, Enter / Esc to leave | |
 | `Ctrl+Shift+q` | close the window | |
 
-Workspaces: 1 browser · 2 terminal · 3 editors (Neovim, Sublime, VS Code) · 4 Steam ·
+Workspaces: 1 browser · 2 terminal · 3 editors (Neovim, Sublime, VS Code) · 4 games (Steam, Wine) ·
 5 Chromium · 6 files · 7 mail · 8 Claude · 9 Telegram / Discord · 10 video editing.
 Apps open on their workspace by themselves (window rules in the sway / i3 / AeroSpace
 config).

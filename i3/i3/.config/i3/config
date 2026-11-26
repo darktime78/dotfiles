@@ -195,8 +195,9 @@ assign [class="^docker-nvim"] $wspace3
 assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
 assign [class="(?i)^(gnome-text-editor|gedit|mousepad|kate)$"] $wspace3
 assign [class="^jetbrains-"] $wspace3
-# 4 - Steam (docker)
+# 4 - games: Steam (docker), Wine games (wine-game; the class is the .exe name)
 assign [class="(?i)^steam$"] $wspace4
+assign [class="(?i)\.exe$"] $wspace4
 # 5 - Chromium (docker)
 assign [class="(?i)^chromium"] $wspace5
 # 6 - file manager

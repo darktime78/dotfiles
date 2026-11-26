@@ -206,8 +206,9 @@ assign [app_id="(?i)^(sublime_text|code|code-oss)$"] $wspace3
 assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
 assign [app_id="^org\.(gnome\.TextEditor|gnome\.gedit|xfce\.mousepad|kde\.kate)$"] $wspace3
 assign [class="^jetbrains-"] $wspace3
-# 4 - Steam (docker)
+# 4 - games: Steam (docker), Wine games (wine-game; the class is the .exe name)
 assign [class="(?i)^steam$"] $wspace4
+assign [class="(?i)\.exe$"] $wspace4
 # 5 - Chromium (docker)
 assign [app_id="(?i)^chromium"] $wspace5
 assign [class="(?i)^chromium"] $wspace5
