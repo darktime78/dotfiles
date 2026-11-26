@@ -24,6 +24,7 @@ set -uo pipefail
 REPO=$(cd "$(dirname "$0")" && pwd -P)
 ME=$(id -un) # not $USER: under runuser / sudo it can still be root
 STATE=$HOME/.local/state/dotfiles
+OLD_NAMES="My_linux_settings" # earlier names of this repo: their old links get cleaned up
 BACKUP=$STATE/backup-$(date +%Y%m%d-%H%M%S)
 OS="" PROFILE="" LINKS_ONLY=0 YES=0 DRY=0 UNLINK=0
 
@@ -104,13 +105,20 @@ abs_target() {
 	case $t in /*) ;; *) t=$(dirname "$1")/$t ;; esac
 	if d=$(cd "$(dirname "$t")" 2>/dev/null && pwd -P); then echo "$d/$(basename "$t")"; else echo "$t"; fi
 }
-# a link of ours: points into this folder
-ours() { local t; t=$(abs_target "$1") || return 1; [[ $t == "$REPO/"* || $t == "$REPO" ]]; }
-# a path that is (through links) inside this folder
+# inside this repo, or inside an old clone of it (~/My_linux_settings)?
+in_tree() { # absolute path
+	local n
+	[[ $1/ == "$REPO/"* ]] && return 0
+	for n in $OLD_NAMES; do [[ $1/ == *"/$n/"* ]] && return 0; done
+	return 1
+}
+# a link of ours: points into this repo (or an old clone of it)
+ours() { local t; t=$(abs_target "$1") || return 1; in_tree "$t"; }
+# a path that is (through links) inside this repo or an old clone
 in_repo() {
 	local d
 	d=$(cd "$(dirname "$1")" 2>/dev/null && pwd -P) || return 1
-	[[ $d/ == "$REPO/"* ]]
+	in_tree "$d"
 }
 
 # where links can be: $HOME itself, and below every top-level name the packages use
@@ -123,8 +131,8 @@ scan_links() {
 	done | sort -u
 }
 
-# broken links left by an older layout of these dotfiles (stow, makelinks.sh):
-# relative links like ../My_linux_settings/sway/sway that point to nothing now
+# broken links left by an older layout or name of these dotfiles (stow, makelinks.sh,
+# My_linux_settings): e.g. ../My_linux_settings/sway/sway that points to nothing now
 remove_stale() {
 	local l t abs n=0 name
 	name=$(basename "$REPO")
@@ -132,9 +140,9 @@ remove_stale() {
 		[[ -e $l ]] && continue
 		t=$(readlink "$l") || continue
 		case $t in /*) abs=$t ;; *) abs=$(dirname "$l")/$t ;; esac
-		case $abs in *"/$name/"* | "$REPO"/*)
-			run rm -f "$l"; n=$((n + 1)) ;;
-		esac
+		if [[ $abs == *"/$name/"* ]] || in_tree "$abs"; then
+			run rm -f "$l"; n=$((n + 1))
+		fi
 	done < <(scan_links)
 	((n)) && info "removed $n broken link(s) of the old layout"
 	return 0
@@ -168,7 +176,11 @@ link_pkg() { # folder of this repo
 		real_dirs "$rel"
 		# never move or replace a file of this repo (a folder link we could not undo)
 		if ((!DRY)) && in_repo "$dst"; then die "~/$rel is inside $REPO (a link to a folder?): remove that link and run again"; fi
-		if [[ -e $dst || -L $dst ]]; then backup "$dst" "$rel"; fi
+		if [[ -L $dst ]] && ours "$dst"; then
+			run rm -f "$dst" # our own link from an older layout or clone: just replace it
+		elif [[ -e $dst || -L $dst ]]; then
+			backup "$dst" "$rel"
+		fi
 		run ln -s "$src" "$dst"
 		LINKED=$((LINKED + 1))
 	done < <(find "$REPO/$1" \( -type f -o -type l \) ! -name '.DS_Store' | sort)

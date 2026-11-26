@@ -1,15 +1,16 @@
-# My Linux (and macOS) settings
+# dotfiles
 
 One look on three systems: **sway** (Wayland) and **i3** (X11) on Arch or Ubuntu, and
 **AeroSpace + SketchyBar** on macOS. Same keys, same workspaces, same bar colours,
 same shell, tmux, Vim / Neovim and git setup everywhere.
-Fork of [HardDie/My_linux_settings](https://github.com/HardDie/My_linux_settings).
+Based on [HardDie/My_linux_settings](https://github.com/HardDie/My_linux_settings)
+(this repo was My_linux_settings before; `install.sh` cleans up the old links).
 
 ## Install
 
 ```sh
-git clone https://github.com/darktime78/My_linux_settings ~/My_linux_settings
-cd ~/My_linux_settings
+git clone https://github.com/darktime78/dotfiles ~/dotfiles
+cd ~/dotfiles
 ./install.sh                     # Linux: sway + waybar   macOS: AeroSpace + SketchyBar
 ./install.sh --profile i3        # Linux: i3 + polybar instead (same look and keys)
 ./install.sh --profile terminal  # only zsh, tmux, vim / nvim, git (servers, WSL)
@@ -41,7 +42,7 @@ Partition, mount root on `/mnt` and the EFI partition on `/mnt/boot`, then:
 
 ```sh
 pacstrap -K /mnt base linux linux-firmware
-curl -LO https://raw.githubusercontent.com/darktime78/My_linux_settings/master/install/arch-bootstrap.sh
+curl -LO https://raw.githubusercontent.com/darktime78/dotfiles/master/install/arch-bootstrap.sh
 bash arch-bootstrap.sh
 ```
 

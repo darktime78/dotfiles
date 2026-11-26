@@ -228,15 +228,25 @@ archlinux_x11() {
 		--name archlinux_x11 archlinux
 }
 
+# folder of these dotfiles (found through the ~/.zshrc link that install.sh made)
+dotfiles_dir () {
+	local f
+	f=$(readlink -f "$HOME/.zshrc") && [[ $f == */common/zsh/.zshrc ]] && echo "${f%/common/zsh/.zshrc}"
+}
+
 nvimide () {
+	local d
+	d=$(dotfiles_dir) || { echo "nvimide: ~/.zshrc is not linked to the dotfiles (run install.sh)" >&2; return 1; }
 	docker run --rm -it \
 		--detach-keys="ctrl-@" \
 		-v $HOME/go:/home/vim-go/go \
-		-v $HOME/My_linux_settings/vim/dot-vimrc:/home/vim-go/.vimrc:ro \
-		-v $HOME/My_linux_settings/zsh/dot-zshrc:/home/vim-go/.zshrc:ro \
-		-v $HOME/My_linux_settings/tmux/dot-tmux.conf:/home/vim-go/.tmux.conf:ro \
-		-v $HOME/My_linux_settings/tmux-theme/tmux:/home/vim-go/.config/tmux:ro \
-		-v $HOME/My_linux_settings/oh-my-zsh/zsh:/home/vim-go/.config/zsh:ro \
+		-v "$d/common/vim/.vimrc:/home/vim-go/.vimrc:ro" \
+		-v "$d/common/zsh/.zshrc:/home/vim-go/.zshrc:ro" \
+		-v "$d/common/tmux/.tmux.conf:/home/vim-go/.tmux.conf:ro" \
+		-v "$d/common/tmux/.config/tmux:/home/vim-go/.config/tmux:ro" \
+		-v "$d/common/zsh/.config/zsh/themes:/home/vim-go/.config/zsh/themes:ro" \
+		-v "$HOME/.local/share/oh-my-zsh:/home/vim-go/.local/share/oh-my-zsh:ro" \
+		-v "$HOME/.config/zsh/plugins:/home/vim-go/.config/zsh/plugins:ro" \
 		-v $HOME/Projects/go:/home/vim-go/HomeProjects \
 		-v /tmp/mytmp:/tmp/mytmp \
 		--name nvimide my/nvimide
