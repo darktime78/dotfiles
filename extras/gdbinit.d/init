@@ -1,0 +1,12 @@
+# ~/.gdbinit.d/init — read by gdb-dashboard (https://github.com/cyrus-and/gdb-dashboard)
+# Used by :GdbDashboard (terminal gdb). The DAP session (F5) starts gdb with -nh,
+# so this file and ~/.gdbinit do not interfere with nvim-dap.
+
+dashboard -layout registers stack source assembly variables expressions breakpoints threads
+dashboard -style syntax_highlighting 'monokai'
+dashboard source -style height 15
+dashboard assembly -style height 8
+dashboard stack -style limit 8
+
+set print pretty on
+set disassembly-flavor intel
