@@ -15,7 +15,7 @@ logout() {
 
 choice=$(printf '%s\n' "  Lock" "  Suspend" "  Log out" "  Reboot" "  Power off" | menu Power)
 case $choice in
-*Lock) exec wm-lock ;;
+*Lock) exec "$(dirname "$(readlink -f "$0")")/wm-lock" ;;
 *Suspend) exec systemctl suspend ;; # the idle daemon locks before sleep
 *"Log out") confirm "Log out" && logout ;;
 *Reboot) confirm Reboot && exec systemctl reboot ;;

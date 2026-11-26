@@ -9,11 +9,12 @@
 pgrep -x 'swaylock|i3lock' >/dev/null && exit 0
 
 image=~/.wallpapers/lockscreen.png # make-lockscreen creates it
+bin=$(dirname "$(readlink -f "$0")") # idle daemons may run us with a short PATH
 
 # hide notifications, unless do-not-disturb was already on
-was_dnd=$(wm-dnd status 2>/dev/null)
-[[ $was_dnd == on ]] || wm-dnd on --quiet
-restore() { [[ $was_dnd == on ]] || wm-dnd off --quiet; }
+was_dnd=$("$bin/wm-dnd" status 2>/dev/null)
+[[ $was_dnd == on ]] || "$bin/wm-dnd" on --quiet
+restore() { [[ $was_dnd == on ]] || "$bin/wm-dnd" off --quiet; }
 
 if [[ -n $WAYLAND_DISPLAY ]]; then
 	fg=ffffffff red=d23c3dff none=00000000
@@ -37,10 +38,10 @@ if [[ -n $WAYLAND_DISPLAY ]]; then
 else
 	args=(-n -e -f)
 	[[ -f $image ]] && args+=(-i "$image") || args+=(-c 1d2026)
-	( # until unlocked: screen off after 10 s, then the normal idle times again
-		xset dpms 10 10 10
+	( # until unlocked: screen off after 10 s, then the idle times of wm-idle again
+		xset +dpms dpms 10 10 10
 		i3lock "${args[@]}"
-		xset dpms 330 330 330
+		if [[ -e ${XDG_RUNTIME_DIR:-/tmp}/wm-idle.off ]]; then xset -dpms; else xset dpms 330 330 330; fi
 		restore
 	) >/dev/null 2>&1 &
 	sleep 0.5 # i3lock has grabbed the screen
