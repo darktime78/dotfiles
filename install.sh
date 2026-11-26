@@ -26,6 +26,8 @@ ME=$(id -un) # not $USER: under runuser / sudo it can still be root
 STATE=$HOME/.local/state/dotfiles
 OLD_NAMES="My_linux_settings" # earlier names of this repo (any upper / lower case):
                               # their old links get cleaned up
+# earlier places of this repo: where install.sh ran last time, and the usual ones
+PREV_REPOS="$(cat "$STATE/repo" 2>/dev/null) $HOME/dotfiles $HOME/.dotfiles"
 BACKUP=$STATE/backup-$(date +%Y%m%d-%H%M%S)
 OS="" PROFILE="" LINKS_ONLY=0 YES=0 DRY=0 UNLINK=0
 
@@ -110,6 +112,7 @@ abs_target() {
 in_tree() { # absolute path
 	local n hit=1
 	[[ $1/ == "$REPO/"* ]] && return 0
+	for n in $PREV_REPOS; do [[ $n != "$REPO" && $1/ == "$n/"* ]] && return 0; done
 	shopt -s nocasematch # ~/My_linux_Settings is an old clone too
 	for n in $OLD_NAMES; do [[ $1/ == *"/$n/"* ]] && hit=0; done
 	shopt -u nocasematch
@@ -129,8 +132,9 @@ in_repo() {
 scan_links() {
 	local top
 	find "$HOME" -maxdepth 1 -type l 2>/dev/null
+	# (not ~/.local/state/dotfiles: the backups stay as they are)
 	for top in .config .local $(cd "$REPO" && ls -A common/* linux/* wayland/* i3/* macos/* 2>/dev/null | grep '^\.' | sort -u); do
-		[[ -d $HOME/$top && ! -L $HOME/$top ]] && find "$HOME/$top" -maxdepth 6 -type l 2>/dev/null
+		[[ -d $HOME/$top && ! -L $HOME/$top ]] && find "$HOME/$top" -maxdepth 6 -path "$STATE" -prune -o -type l -print 2>/dev/null
 	done | sort -u
 }
 
@@ -448,6 +452,7 @@ step "Links"
 remove_stale
 for p in $PKGS; do link_pkg "$p"; done
 info "$LINKED new link(s)"
+((DRY)) || { mkdir -p "$STATE"; echo "$REPO" >"$STATE/repo"; } # for a later move of this folder
 
 step "Local files (not in git)"
 local_files

@@ -9,8 +9,8 @@ Based on [HardDie/My_linux_settings](https://github.com/HardDie/My_linux_setting
 ## Install
 
 ```sh
-git clone https://github.com/darktime78/dotfiles ~/dotfiles
-cd ~/dotfiles
+git clone https://github.com/darktime78/dotfiles ~/.dotfiles
+cd ~/.dotfiles
 ./install.sh                     # Linux: sway + waybar   macOS: AeroSpace + SketchyBar
 ./install.sh --profile i3        # Linux: i3 + polybar instead (same look and keys)
 ./install.sh --profile terminal  # only zsh, tmux, vim / nvim, git (servers, WSL)
@@ -28,6 +28,9 @@ layout helper, rofi entries for the Docker apps, the weekly Docker image update 
 a wallpaper and the lock screen picture.
 
 * `--links-only`: no packages, no downloads. `--dry-run`: only show. `--unlink`: remove the links.
+* The folder can have any name and place (`~/.dotfiles` here). To move it later:
+  `mv ~/.dotfiles ~/somewhere && ~/somewhere/install.sh --links-only`; the links into the
+  old place are replaced.
 * Safe to run again, after every `git pull` too. Files in the way are moved to
   `~/.local/state/dotfiles/backup-DATE/`; broken links of the old stow layout are removed.
 * Links are made per file, never per folder, so programs writing into `~/.config` never

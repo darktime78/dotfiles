@@ -17,17 +17,18 @@
 #               with LUKS, LVM and btrfs detected automatically
 #   user with sudo · NetworkManager, bluetooth, docker, printing, power profiles
 #   yay + AUR packages · apps
-#   these dotfiles in ~/dotfiles, set up by their install.sh: the desktop you
+#   these dotfiles in ~/.dotfiles, set up by their install.sh: the desktop you
 #   choose (sway + waybar, or i3 + polybar: same look and keys), fonts, zsh, layout
 #   helper, rofi Docker launchers, weekly Docker image updates
 #
 # Safe to run again: it skips what is already done.
 # Log: /mnt/var/log/install_arch.log (also kept on the installed system).
-# Only the dotfiles part again, later: ~/dotfiles/install.sh
+# Only the dotfiles part again, later: ~/.dotfiles/install.sh
 
 set -euo pipefail
 
 REPO_URL="https://github.com/darktime78/dotfiles.git"
+DOTFILES_DIR=".dotfiles" # folder in the user's home for the dotfiles (any name works)
 TARGET=/mnt
 CONF=/root/install_arch.conf # inside the target, passwords included; deleted at the end
 LOG=/var/log/install_arch.log
@@ -173,7 +174,7 @@ stage_live() {
 	if ((WANT_DESKTOP)); then
 		WANT_DOTFILES=1 # the desktop comes from the dotfiles' install.sh
 	else
-		yesno WANT_DOTFILES "These dotfiles in ~/dotfiles (zsh, tmux, vim, git)" Y
+		yesno WANT_DOTFILES "These dotfiles in ~/$DOTFILES_DIR (zsh, tmux, vim, git)" Y
 	fi
 	WANT_NVIDIA=0
 	[[ $NVIDIA != none ]] && yesno WANT_NVIDIA "NVIDIA driver for $NVIDIA_NAME ($NVIDIA)" Y
@@ -221,7 +222,7 @@ stage_live() {
     umount -R $TARGET && reboot
     log in as $USERNAME on tty1: $( ((WANT_DESKTOP)) && echo "$DESKTOP starts by itself (zsh)" || echo zsh)
     Wi-Fi: nmtui
-    keys: ~/dotfiles/docs/keys.md
+    keys: ~/$DOTFILES_DIR/docs/keys.md
 EOF
 	((WANT_DOCKER)) && cat <<EOF
     Docker images (once, ~1 h): docker-images-update base firefox chromium telegram
@@ -440,12 +441,12 @@ EOF
 	if ((WANT_DOTFILES)); then
 		local profile=terminal
 		((WANT_DESKTOP)) && profile=$DESKTOP
-		step "Dotfiles: ~/dotfiles ($profile)"
+		step "Dotfiles: ~/$DOTFILES_DIR ($profile)"
 		as_user "set -e; cd ~
-			[[ -d dotfiles/.git ]] || git clone -q '$REPO_URL' dotfiles"
+			[[ -d '$DOTFILES_DIR/.git' ]] || git clone -q '$REPO_URL' '$DOTFILES_DIR'"
 		# desktop packages, links, fonts, zsh, layout helper, Docker launchers and timer
-		as_user "cd ~/dotfiles && ./install.sh --os arch --profile $profile --yes" ||
-			warn "install.sh had problems (run it again after the first login: ~/dotfiles/install.sh)"
+		as_user "cd ~/'$DOTFILES_DIR' && ./install.sh --os arch --profile $profile --yes" ||
+			warn "install.sh had problems (run it again after the first login: ~/$DOTFILES_DIR/install.sh)"
 	fi
 
 	if ((WANT_POWER)); then
