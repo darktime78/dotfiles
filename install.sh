@@ -24,7 +24,8 @@ set -uo pipefail
 REPO=$(cd "$(dirname "$0")" && pwd -P)
 ME=$(id -un) # not $USER: under runuser / sudo it can still be root
 STATE=$HOME/.local/state/dotfiles
-OLD_NAMES="My_linux_settings" # earlier names of this repo: their old links get cleaned up
+OLD_NAMES="My_linux_settings" # earlier names of this repo (any upper / lower case):
+                              # their old links get cleaned up
 BACKUP=$STATE/backup-$(date +%Y%m%d-%H%M%S)
 OS="" PROFILE="" LINKS_ONLY=0 YES=0 DRY=0 UNLINK=0
 
@@ -107,10 +108,12 @@ abs_target() {
 }
 # inside this repo, or inside an old clone of it (~/My_linux_settings)?
 in_tree() { # absolute path
-	local n
+	local n hit=1
 	[[ $1/ == "$REPO/"* ]] && return 0
-	for n in $OLD_NAMES; do [[ $1/ == *"/$n/"* ]] && return 0; done
-	return 1
+	shopt -s nocasematch # ~/My_linux_Settings is an old clone too
+	for n in $OLD_NAMES; do [[ $1/ == *"/$n/"* ]] && hit=0; done
+	shopt -u nocasematch
+	return $hit
 }
 # a link of ours: points into this repo (or an old clone of it)
 ours() { local t; t=$(abs_target "$1") || return 1; in_tree "$t"; }
@@ -137,14 +140,18 @@ remove_stale() {
 	local l t abs n=0 name
 	name=$(basename "$REPO")
 	while IFS= read -r l; do
-		[[ -e $l ]] && continue
 		t=$(readlink "$l") || continue
 		case $t in /*) abs=$t ;; *) abs=$(dirname "$l")/$t ;; esac
-		if [[ $abs == *"/$name/"* ]] || in_tree "$abs"; then
-			run rm -f "$l"; n=$((n + 1))
+		if [[ -e $l ]]; then
+			# working link into an old clone (~/My_linux_settings): the new links replace it
+			abs=$(abs_target "$l")
+			[[ $abs != "$REPO/"* ]] && in_tree "$abs" || continue
+		elif ! { [[ $abs == *"/$name/"* ]] || in_tree "$abs"; }; then
+			continue
 		fi
+		run rm -f "$l"; n=$((n + 1))
 	done < <(scan_links)
-	((n)) && info "removed $n broken link(s) of the old layout"
+	((n)) && info "removed $n old link(s) (old layout or old folder)"
 	return 0
 }
 
@@ -157,11 +164,17 @@ backup() { # path relative-name
 # a folder on the way to a link must be a real folder, not a link into this repo
 # (stow "folded" whole folders: writing there would write into git)
 real_dirs() { # relative path of the file
-	local d=$HOME part rest=$1
+	local d=$HOME part rest=$1 r=""
 	while [[ $rest == */* ]]; do
 		part=${rest%%/*}; rest=${rest#*/}
-		d=$d/$part
-		if [[ -L $d ]] && ours "$d"; then run rm -f "$d"; fi
+		d=$d/$part r=${r:+$r/}$part
+		if [[ -L $d ]] && ours "$d"; then
+			run rm -f "$d"            # old folder link into this repo / an old clone
+		elif [[ -L $d && ! -d $d ]]; then
+			backup "$d" "$r"          # broken folder link, or a link to a file
+		elif [[ -e $d && ! -d $d ]]; then
+			backup "$d" "$r"          # a file where a folder must be
+		fi
 	done
 	run mkdir -p "$(dirname "$HOME/$1")"
 }
@@ -173,7 +186,7 @@ link_pkg() { # folder of this repo
 		rel=${src#"$REPO/$1/"}
 		dst=$HOME/$rel
 		if [[ -L $dst && $(readlink "$dst") == "$src" ]]; then continue; fi
-		real_dirs "$rel"
+		if ! real_dirs "$rel"; then warn "could not create the folder for ~/$rel"; continue; fi
 		# never move or replace a file of this repo (a folder link we could not undo)
 		if ((!DRY)) && in_repo "$dst"; then die "~/$rel is inside $REPO (a link to a folder?): remove that link and run again"; fi
 		if [[ -L $dst ]] && ours "$dst"; then
@@ -181,8 +194,7 @@ link_pkg() { # folder of this repo
 		elif [[ -e $dst || -L $dst ]]; then
 			backup "$dst" "$rel"
 		fi
-		run ln -s "$src" "$dst"
-		LINKED=$((LINKED + 1))
+		if run ln -s "$src" "$dst"; then LINKED=$((LINKED + 1)); else warn "could not link ~/$rel"; fi
 	done < <(find "$REPO/$1" \( -type f -o -type l \) ! -name '.DS_Store' | sort)
 }
 
