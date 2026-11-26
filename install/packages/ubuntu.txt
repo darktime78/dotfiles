@@ -1,0 +1,19 @@
+# Ubuntu / Debian, every profile: shell and tools (common/). Ubuntu 24.04 or newer.
+git
+zsh
+tmux
+vim
+neovim
+htop
+curl
+wget
+unzip
+fontconfig
+jq
+ripgrep
+fd-find
+fzf
+golang-go
+clang-format
+socat
+aria2

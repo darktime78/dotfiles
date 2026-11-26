@@ -1,0 +1,16 @@
+[Unit]
+Description=Update Docker images (rebuild the dotfiles images, pull registry images)
+Documentation=man:docker(1)
+# Rebuilding images takes a while and uses the CPU: never on battery.
+# On battery the run is skipped; the daily timer tries again the next day.
+ConditionACPower=true
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/.local/bin/docker-images-update --auto
+# stay out of the way
+Nice=19
+CPUWeight=20
+IOSchedulingClass=idle
+TimeoutStartSec=4h

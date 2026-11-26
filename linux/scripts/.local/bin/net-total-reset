@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# net-total-reset [interface]: reset the traffic counter shown on the bar (net-total).
+
+IFACE=$1
+if [[ -z $IFACE ]]; then
+	while read -r ifc dest _; do
+		[[ $dest == 00000000 ]] && IFACE=$ifc && break
+	done </proc/net/route
+fi
+[[ -n $IFACE ]] || exit 1
+
+cat "/sys/class/net/$IFACE/statistics/rx_bytes" >/tmp/network_rx_reset
+cat "/sys/class/net/$IFACE/statistics/tx_bytes" >/tmp/network_tx_reset
+pkill -x -RTMIN+8 waybar 2>/dev/null # waybar: refresh now
+"$(dirname "$0")/bar-status" refresh    # polybar: the same
+true

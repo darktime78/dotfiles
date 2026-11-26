@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# wm-idle: idle handling on i3 / X11, the same steps as swayidle on sway.
+#   4 min dim, 5 min lock, 5.5 min screen off, 15 min suspend (on battery only),
+#   and lock before sleep.
+# (sway uses swayidle from its config, and waybar's eye button instead.)
+#
+#   wm-idle start     at login (i3 config)
+#   wm-idle toggle    eye button on the bar: auto lock / screen off on <-> off
+#   wm-idle status    "on" or "off"
+#
+# Uses: xset (screen saver + DPMS timers), xss-lock (lock, also before sleep,
+# wm-dim as the "dim" warning), xautolock (suspend after 15 min).
+
+OFF=${XDG_RUNTIME_DIR:-/tmp}/wm-idle.off
+bin=$(dirname "$(readlink -f "$0")")
+
+timers_on() {
+	xset s 240 60          # screen saver at 4 min (= dim), lock 60 s later
+	xset +dpms dpms 330 330 330
+}
+timers_off() {
+	xset s off -dpms
+}
+
+case ${1:-start} in
+start)
+	rm -f "$OFF"
+	timers_on
+	pkill -x xss-lock
+	pkill -x xautolock
+	setsid -f xss-lock -n "$bin/wm-dim" -- "$bin/wm-lock" >/dev/null 2>&1
+	if command -v xautolock >/dev/null; then
+		setsid -f xautolock -time 15 -locker "$bin/suspend-on-battery" -detectsleep >/dev/null 2>&1
+	fi
+	;;
+toggle)
+	if [[ -e $OFF ]]; then
+		rm -f "$OFF"
+		timers_on
+		xautolock -enable 2>/dev/null
+		notify-send -t 2000 "Auto lock on"
+	else
+		touch "$OFF"
+		timers_off
+		xautolock -disable 2>/dev/null
+		notify-send -t 2000 "Auto lock off" "The screen stays on"
+	fi
+	"$bin/bar-status" refresh
+	;;
+status)
+	if [[ -e $OFF ]]; then echo off; else echo on; fi
+	;;
+*)
+	echo "usage: wm-idle start|toggle|status" >&2
+	exit 1
+	;;
+esac

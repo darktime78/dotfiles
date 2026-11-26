@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# wm-dnd [toggle|on|off|status] [--quiet]: do not disturb (hide notifications).
+# mako (sway) or dunst (i3), whichever is running.
+
+action=${1:-toggle} quiet=0
+[[ ${2:-} == --quiet || ${1:-} == --quiet ]] && quiet=1
+[[ $action == --quiet ]] && action=toggle
+
+if pgrep -x mako >/dev/null; then
+	is_on() { makoctl mode | grep -qx do-not-disturb; }
+	set_on() { makoctl mode -a do-not-disturb >/dev/null; }
+	set_off() { makoctl mode -r do-not-disturb >/dev/null; }
+elif pgrep -x dunst >/dev/null; then
+	is_on() { [[ $(dunstctl is-paused) == true ]]; }
+	set_on() { dunstctl set-paused true; }
+	set_off() { dunstctl set-paused false; }
+else
+	[[ $action == status ]] && echo off
+	exit 0
+fi
+
+case $action in
+status) is_on && echo on || echo off ;;
+on) set_on ;;
+off) set_off ;;
+toggle)
+	if is_on; then
+		set_off
+		((quiet)) || notify-send -t 2000 "Notifications" "Do not disturb: off"
+	else
+		((quiet)) || { notify-send -t 1500 "Notifications" "Do not disturb: on"; sleep 1.6; }
+		set_on
+	fi
+	;;
+esac

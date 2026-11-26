@@ -1,0 +1,89 @@
+#!/bin/bash
+#
+# bar-status: polybar (i3) modules that waybar has built in. The bar config
+# (made by tools/make_bars.py) passes the finished look; this script picks one.
+#
+#   bar-status [--every N] KIND FORMATS...
+#     service NAME ON OFF        FIM / Router button (services.conf, see bar-service)
+#     idle ON OFF                ON = auto lock turned off (wm-idle)
+#     power PERF BALANCED SAVER  power-profiles-daemon
+#     bluetooth OFF ON CONNECTED @N@ = connected devices
+#     load NORMAL HIGH           @LOAD@ = 1 min load; HIGH above 90 % of the cores
+#     traffic FORMAT             @DOWN@ @UP@ = traffic since the reset (net-total)
+#   bar-status power-next        next power profile
+#   bar-status refresh           all modules print again now (after a click)
+#
+# With --every N it keeps running (polybar "tail = true"): prints, then waits N
+# seconds or until "bar-status refresh". One process per module, mostly asleep.
+
+if [[ $1 == --every ]]; then
+	every=$2
+	shift 2
+	trap 'kill $sleeper 2>/dev/null' USR1
+	while :; do
+		"$0" "$@" || exit
+		sleep "$every" &
+		sleeper=$!
+		wait $sleeper
+	done
+fi
+
+kind=$1
+shift
+case $kind in
+service)
+	exec "$(dirname "$0")/bar-service" "$1" --polybar "$2" "$3"
+	;;
+idle)
+	if [[ -e ${XDG_RUNTIME_DIR:-/tmp}/wm-idle.off ]]; then echo "$1"; else echo "$2"; fi
+	;;
+power)
+	command -v powerprofilesctl >/dev/null || { echo; exit 0; }
+	case $(powerprofilesctl get 2>/dev/null) in
+	performance) echo "$1" ;;
+	power-saver) echo "$3" ;;
+	*) echo "$2" ;;
+	esac
+	;;
+power-next)
+	case $(powerprofilesctl get) in
+	power-saver) next=balanced ;;
+	balanced) next=performance ;;
+	*) next=power-saver ;;
+	esac
+	powerprofilesctl set $next && notify-send -t 2000 "Power profile" "$next"
+	exec "$0" refresh
+	;;
+bluetooth)
+	command -v bluetoothctl >/dev/null || { echo; exit 0; }
+	if ! bluetoothctl show 2>/dev/null | grep -q 'Powered: yes'; then
+		echo "$1"
+	else
+		n=$(bluetoothctl devices Connected 2>/dev/null | grep -c '^Device')
+		if ((n > 0)); then echo "${3//@N@/$n}"; else echo "$2"; fi
+	fi
+	;;
+load)
+	read -r load _ </proc/loadavg
+	cores=$(nproc)
+	# load > 0.9 * cores, in integer maths (load has two decimals)
+	l=${load/./}
+	l=$((10#$l))
+	if ((l > cores * 90)); then out=$2; else out=$1; fi
+	echo "${out//@LOAD@/$load}"
+	;;
+traffic)
+	read -r down up < <("$(dirname "$0")/net-total" --plain)
+	out=${1//@DOWN@/$down}
+	echo "${out//@UP@/$up}"
+	;;
+refresh)
+	# only the bash loops themselves, not a shell that started them
+	pkill -USR1 -f '^/(usr/)?bin/bash [^ ]*bar-status --every' 2>/dev/null
+	true
+	;;
+*)
+	echo "usage: see the top of $0" >&2
+	exit 1
+	;;
+esac

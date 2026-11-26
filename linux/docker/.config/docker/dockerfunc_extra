@@ -1,0 +1,59 @@
+# Extra docker apps, used together with ~/.config/docker/dockerfunc.
+# Loaded by ~/.zshrc as well (nvimcpp, claude in the shell).
+
+# Claude as its own app window (Chromium --app) with a separate profile.
+# Uses your my/chromium image. Window goes to workspace 8.
+claude () {
+	mkdir -p $HOME/.config/isolated_env/claude
+	docker run --rm -d \
+		--pid host \
+		--net host \
+		--device /dev/dri \
+		-v /dev/shm:/dev/shm \
+		-v $HOME/.config/isolated_env/claude:/home/user \
+		-e XDG_RUNTIME_DIR=/tmp \
+		-e WAYLAND_DISPLAY=$WAYLAND_DISPLAY \
+		-v $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY \
+		-v $XDG_RUNTIME_DIR/pulse:/tmp/pulse \
+		--name claude my/chromium \
+		--no-sandbox --ozone-platform=wayland --app=https://claude.ai "$@"
+}
+
+# Neovim C/C++ IDE (your LazyVim config) using the local Qwen servers (arch-local-ai).
+# Build once:  docker-images-update nvim-cpp   (uses your config from common/nvim)
+# Servers: ports come from ~/.config/localai/localai.conf; overrides in ~/.config/docker/localai.env
+# Projects: ~/Projects is mounted at /home/user/Projects (start dir).
+# Edit the config live: ln -s ~/.config/nvim ~/.config/nvim-cpp
+#   (if that folder exists it is mounted instead of the config inside the image)
+nvimcpp () {
+	mkdir -p $HOME/Projects
+	local extra=()
+	[[ -f $HOME/.config/docker/localai.env ]] && extra+=(--env-file $HOME/.config/docker/localai.env)
+	[[ -d $HOME/.config/nvim-cpp ]] && extra+=(-v $HOME/.config/nvim-cpp:/home/user/.config/nvim)
+	[[ -f $HOME/.gitconfig ]] && extra+=(-v $HOME/.gitconfig:/home/user/.gitconfig:ro)
+	# your name / email (the shared .gitconfig includes it)
+	[[ -f $HOME/.gitconfig.local ]] && extra+=(-v $HOME/.gitconfig.local:/home/user/.gitconfig.local:ro)
+	# arch-local-ai on the host: ports, OpenCode config + commands, cpp-report, control socket
+	[[ -d $HOME/.config/localai ]] && extra+=(-v $HOME/.config/localai:/home/user/.config/localai:ro)
+	[[ -d $HOME/.config/opencode ]] && extra+=(-v $HOME/.config/opencode:/home/user/.config/opencode:ro)
+	[[ -x $HOME/.local/bin/cpp-report ]] && extra+=(-v $HOME/.local/bin/cpp-report:/home/user/.local/bin/cpp-report:ro)
+	# the folder (not the socket) is mounted, so restarting localai-ctl doesn't break it
+	mkdir -p -m 700 $XDG_RUNTIME_DIR/localai-ctl
+	extra+=(-v $XDG_RUNTIME_DIR/localai-ctl:/run/localai-ctl)
+	[[ -n $WAYLAND_DISPLAY ]] && extra+=(-e WAYLAND_DISPLAY=$WAYLAND_DISPLAY \
+		-v $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY)
+	docker run --rm -it \
+		--detach-keys="ctrl-@" \
+		--net host \
+		--cap-add SYS_PTRACE --cap-add PERFMON \
+		--security-opt seccomp=unconfined \
+		-e TERM -e COLORTERM \
+		-e XDG_RUNTIME_DIR=/tmp \
+		-e HOST_PROJECTS=$HOME/Projects \
+		-v nvim-cpp-data:/home/user/.local/share/nvim \
+		-v nvim-cpp-state:/home/user/.local/state/nvim \
+		-v nvim-cpp-opencode:/home/user/.local/share/opencode \
+		-v $HOME/Projects:/home/user/Projects \
+		"${extra[@]}" \
+		--name nvimcpp my/nvim-cpp "$@"
+}

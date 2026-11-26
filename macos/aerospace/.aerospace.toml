@@ -1,0 +1,186 @@
+# AeroSpace (macOS): the same keys and workspaces as sway / i3, with Option (alt)
+# as $mod, because Cmd is taken by macOS. Keys: docs/keys.md.
+# Not on macOS: rofi ($mod+d: use Cmd+Space), scratchpad, $mod+Tab, power menu, F12 screenshots
+# (Cmd+Shift+3/4/5). Keyboard layout: Ctrl+Space (macOS input sources).
+
+start-at-login = true
+
+# the bar and the window borders start with AeroSpace
+after-startup-command = [
+    'exec-and-forget sketchybar',
+    'exec-and-forget borders active_color=0xff4c7899 inactive_color=0x00000000 width=2.0',
+]
+
+# tell SketchyBar about workspace changes (macos/sketchybar)
+exec-on-workspace-change = ['/bin/bash', '-c',
+    'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE',
+]
+
+enable-normalization-flatten-containers = true
+enable-normalization-opposite-orientation-for-nested-containers = true
+default-root-container-layout = 'tiles'
+default-root-container-orientation = 'auto'
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+# like "focus_follows_mouse no": the mouse never changes the focus
+automatically-unhide-macos-hidden-apps = false
+
+[key-mapping]
+preset = 'qwerty'
+
+# gaps inner 10, like sway / i3; room at the top for SketchyBar (28 px)
+[gaps]
+inner.horizontal = 10
+inner.vertical = 10
+outer.left = 0
+outer.bottom = 0
+outer.right = 0
+outer.top = 30
+
+[mode.main.binding]
+# applications
+ctrl-alt-t = 'exec-and-forget open -na Ghostty || open -na Alacritty'
+ctrl-shift-q = 'close'
+
+# focus / move (i j k l, as on Linux)
+alt-j = 'focus left'
+alt-k = 'focus down'
+alt-i = 'focus up'
+alt-l = 'focus right'
+alt-shift-j = 'move left'
+alt-shift-k = 'move down'
+alt-shift-i = 'move up'
+alt-shift-l = 'move right'
+alt-ctrl-shift-j = 'move-workspace-to-monitor --wrap-around prev'
+alt-ctrl-shift-l = 'move-workspace-to-monitor --wrap-around next'
+
+# layouts: w tabbed (accordion), e toggle split, f fullscreen
+alt-h = 'join-with left'
+alt-v = 'join-with up'
+alt-f = 'fullscreen'
+alt-w = 'layout accordion horizontal vertical'
+alt-e = 'layout tiles horizontal vertical'
+alt-shift-space = 'layout floating tiling'
+
+alt-1 = 'workspace 1'
+alt-2 = 'workspace 2'
+alt-3 = 'workspace 3'
+alt-4 = 'workspace 4'
+alt-5 = 'workspace 5'
+alt-6 = 'workspace 6'
+alt-7 = 'workspace 7'
+alt-8 = 'workspace 8'
+alt-9 = 'workspace 9'
+alt-0 = 'workspace 10'
+
+alt-shift-1 = 'move-node-to-workspace 1'
+alt-shift-2 = 'move-node-to-workspace 2'
+alt-shift-3 = 'move-node-to-workspace 3'
+alt-shift-4 = 'move-node-to-workspace 4'
+alt-shift-5 = 'move-node-to-workspace 5'
+alt-shift-6 = 'move-node-to-workspace 6'
+alt-shift-7 = 'move-node-to-workspace 7'
+alt-shift-8 = 'move-node-to-workspace 8'
+alt-shift-9 = 'move-node-to-workspace 9'
+alt-shift-0 = 'move-node-to-workspace 10'
+
+alt-r = 'mode resize'
+alt-shift-r = 'reload-config'
+# bar: show / hide
+alt-m = 'exec-and-forget sketchybar --bar hidden=toggle'
+alt-shift-m = 'exec-and-forget sketchybar --reload'
+# lock (screen off; macOS asks for the password)
+ctrl-alt-shift-l = 'exec-and-forget pmset displaysleepnow'
+ctrl-alt-shift-s = 'exec-and-forget pmset sleepnow'
+
+[mode.resize.binding]
+j = 'resize width -50'
+l = 'resize width +50'
+i = 'resize height -50'
+k = 'resize height +50'
+left = 'resize width -10'
+right = 'resize width +10'
+up = 'resize height -10'
+down = 'resize height +10'
+enter = 'mode main'
+esc = 'mode main'
+
+# ---------------------------------------------------------------- window rules
+# The same workspaces as on Linux. App ids: aerospace list-apps
+# 1 browser
+[[on-window-detected]]
+if.app-id = 'org.mozilla.firefox'
+run = 'move-node-to-workspace 1'
+[[on-window-detected]]
+if.app-id = 'com.apple.Safari'
+run = 'move-node-to-workspace 1'
+# 2 terminal
+[[on-window-detected]]
+if.app-id = 'com.mitchellh.ghostty'
+run = 'move-node-to-workspace 2'
+[[on-window-detected]]
+if.app-id = 'org.alacritty'
+run = 'move-node-to-workspace 2'
+# 3 editors
+[[on-window-detected]]
+if.app-id = 'com.sublimetext.4'
+run = 'move-node-to-workspace 3'
+[[on-window-detected]]
+if.app-id = 'com.microsoft.VSCode'
+run = 'move-node-to-workspace 3'
+[[on-window-detected]]
+if.app-id = 'com.neovide.neovide'
+run = 'move-node-to-workspace 3'
+# 4 Steam
+[[on-window-detected]]
+if.app-id = 'com.valvesoftware.steam'
+run = 'move-node-to-workspace 4'
+# 5 Chrome / Chromium
+[[on-window-detected]]
+if.app-id = 'com.google.Chrome'
+run = 'move-node-to-workspace 5'
+[[on-window-detected]]
+if.app-id = 'org.chromium.Chromium'
+run = 'move-node-to-workspace 5'
+# 6 files
+[[on-window-detected]]
+if.app-id = 'com.apple.finder'
+run = 'move-node-to-workspace 6'
+# 7 mail
+[[on-window-detected]]
+if.app-id = 'com.apple.mail'
+run = 'move-node-to-workspace 7'
+[[on-window-detected]]
+if.app-id = 'org.mozilla.thunderbird'
+run = 'move-node-to-workspace 7'
+# 8 Claude
+[[on-window-detected]]
+if.app-id = 'com.anthropic.claudefordesktop'
+run = 'move-node-to-workspace 8'
+# 9 chat
+[[on-window-detected]]
+if.app-id = 'ru.keepcoder.Telegram'
+run = 'move-node-to-workspace 9'
+[[on-window-detected]]
+if.app-id = 'org.telegram.desktop'
+run = 'move-node-to-workspace 9'
+[[on-window-detected]]
+if.app-id = 'com.hnc.Discord'
+run = 'move-node-to-workspace 9'
+# 10 video editing
+[[on-window-detected]]
+if.app-id = 'com.blackmagic-design.DaVinciResolve'
+run = 'move-node-to-workspace 10'
+[[on-window-detected]]
+if.app-id = 'org.kde.kdenlive'
+run = 'move-node-to-workspace 10'
+[[on-window-detected]]
+if.app-id = 'com.apple.FinalCut'
+run = 'move-node-to-workspace 10'
+
+# floating, like pavucontrol / dialogs on Linux
+[[on-window-detected]]
+if.app-id = 'com.apple.systempreferences'
+run = 'layout floating'
+[[on-window-detected]]
+if.app-id = 'com.apple.calculator'
+run = 'layout floating'

@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# wm-power-menu: lock / suspend / log out / reboot / power off (rofi).
+# Log out, reboot and power off ask for confirmation. Uses your rofi theme
+# "power" (~/.config/rofi/power.rasi) when it exists.
+
+theme=()
+[[ -f ~/.config/rofi/power.rasi ]] && theme=(-theme power)
+menu() { rofi -dmenu -i -no-custom "${theme[@]}" -p "$1"; }
+confirm() { [[ $(printf 'No\nYes\n' | menu "$1?") == Yes ]]; }
+
+logout() {
+	if [[ -n $SWAYSOCK ]]; then swaymsg exit; else i3-msg exit; fi
+}
+
+choice=$(printf '%s\n' "  Lock" "  Suspend" "  Log out" "  Reboot" "  Power off" | menu Power)
+case $choice in
+*Lock) exec wm-lock ;;
+*Suspend) exec systemctl suspend ;; # the idle daemon locks before sleep
+*"Log out") confirm "Log out" && logout ;;
+*Reboot) confirm Reboot && exec systemctl reboot ;;
+*"Power off") confirm "Power off" && exec systemctl poweroff ;;
+esac

@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# net-total: network traffic since the last reset (net-total-reset, or right click on
+# the bar module). Shell builtins only, no cat/bc/numfmt processes.
+#
+#   net-total [interface]           JSON for waybar
+#   net-total --plain [interface]   "1.2G 340.5M" for polybar
+# Default interface: the one of the default route.
+
+PLAIN=0
+[[ $1 == --plain ]] && { PLAIN=1; shift; }
+IFACE=$1
+if [[ -z $IFACE ]]; then
+	while read -r ifc dest _; do
+		[[ $dest == 00000000 ]] && IFACE=$ifc && break
+	done </proc/net/route
+fi
+
+STAT=/sys/class/net/$IFACE/statistics
+if [[ -z $IFACE || ! -r $STAT/rx_bytes ]]; then
+	((PLAIN)) && echo "- -" || echo '{"text": "-", "alt": "-", "tooltip": "no network"}'
+	exit 0
+fi
+
+read -r rx <"$STAT/rx_bytes"
+read -r tx <"$STAT/tx_bytes"
+rx0=0 tx0=0
+[[ -r /tmp/network_rx_reset ]] && read -r rx0 </tmp/network_rx_reset
+[[ -r /tmp/network_tx_reset ]] && read -r tx0 </tmp/network_tx_reset
+# counters restart after reboot / reconnect
+(( rx0 > rx )) && rx0=0
+(( tx0 > tx )) && tx0=0
+
+human() {
+	local v=$(( $1 * 10 )) i=0 units=BKMGT
+	while (( v >= 10240 && i < 4 )); do
+		v=$(( v / 1024 ))
+		(( i++ ))
+	done
+	printf '%d.%d%s' $(( v / 10 )) $(( v % 10 )) "${units:i:1}"
+}
+
+down=$(human $(( rx - rx0 )))
+up=$(human $(( tx - tx0 )))
+((PLAIN)) && { echo "$down $up"; exit 0; }
+printf '{"text": "%s", "alt": "%s", "tooltip": "%s since reset: down %s, up %s\\nRight click: reset"}\n' \
+	"$down" "$up" "$IFACE" "$down" "$up"

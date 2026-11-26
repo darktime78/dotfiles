@@ -1,0 +1,63 @@
+#!/bin/bash
+#
+# docker-launchers: put your docker apps into the normal rofi launcher ($mod+d), with
+# icons. Made from the functions in ~/.config/docker/dockerfunc (and dockerfunc_extra),
+# so new apps appear after running this again. Also adds a Neovim entry that opens in
+# its own terminal window (app_id / class "nvim", workspace 3).
+# Writes ~/.local/share/applications/docker-*.desktop and nvim.desktop.
+
+APPS=~/.local/share/applications
+mkdir -p "$APPS"
+for f in ~/.config/docker/dockerfunc ~/.config/docker/dockerfunc_extra; do
+	# shellcheck source=/dev/null
+	[[ -r $f ]] && source "$f"
+done
+
+# name | icon | categories  (servers and helpers are left out)
+declare -A INFO=(
+	[firefox]="Firefox|firefox|Network;WebBrowser;"
+	[firefox_bare]="Firefox, clean profile|firefox|Network;WebBrowser;"
+	[chromium]="Chromium|chromium|Network;WebBrowser;"
+	[chromium_clean]="Chromium, clean profile|chromium|Network;WebBrowser;"
+	[waterfox]="Waterfox|firefox|Network;WebBrowser;"
+	[yab]="Yandex Browser|yandex-browser|Network;WebBrowser;"
+	[telegram]="Telegram|telegram|Network;Chat;"
+	[discord]="Discord|discord|Network;Chat;"
+	[steam]="Steam|steam|Game;"
+	[intellij]="IntelliJ IDEA|idea|Development;IDE;"
+	[vscode]="VS Code|visual-studio-code|Development;IDE;"
+	[claude]="Claude AI|web-browser|Network;Office;"
+	[nvimcpp]="Neovim C++ + LocalAI|nvim|Development;TextEditor;"
+	[nvimide]="Neovim IDE|nvim|Development;TextEditor;"
+)
+
+rm -f "$APPS"/docker-*.desktop
+for fn in $(declare -F | awk '{print $3}'); do
+	[[ -n ${INFO[$fn]:-} ]] || continue
+	IFS='|' read -r name icon cats <<<"${INFO[$fn]}"
+	cat >"$APPS/docker-$fn.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$name (Docker)
+Icon=$icon
+Exec=$HOME/.local/bin/docker-app $fn
+Terminal=false
+Categories=$cats
+EOF
+	echo "  $name (Docker)"
+done
+
+# Same file name as the system nvim.desktop, so this one is used
+cat >"$APPS/nvim.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Neovim
+Icon=nvim
+Exec=alacritty --class nvim -e nvim %F
+Terminal=false
+Categories=Utility;TextEditor;
+MimeType=text/plain;text/x-makefile;text/x-c;text/x-c++;text/x-python;text/x-shellscript;
+EOF
+echo "  Neovim"
+update-desktop-database "$APPS" 2>/dev/null
+true

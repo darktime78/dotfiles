@@ -1,0 +1,26 @@
+# macOS packages: brew bundle --file install/packages/Brewfile (install.sh does this)
+tap "nikitabobko/tap"
+tap "FelixKratz/formulae"
+
+# desktop: tiling WM, bar, window borders (macos/)
+cask "nikitabobko/tap/aerospace"
+brew "FelixKratz/formulae/sketchybar"
+brew "FelixKratz/formulae/borders"
+
+# terminal (the Alacritty cask is disabled in Homebrew; Ghostty has the same config)
+cask "ghostty"
+cask "font-hack-nerd-font"
+
+# shell and tools (common/)
+brew "git"
+brew "neovim"
+brew "vim"
+brew "tmux"
+brew "jq"
+brew "ripgrep"
+brew "fd"
+brew "fzf"
+brew "htop"
+brew "wget"
+brew "clang-format"
+brew "go"

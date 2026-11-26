@@ -1,0 +1,14 @@
+# Ubuntu, wayland and i3: shared desktop parts (linux/)
+# (alacritty: install.sh uses the snap when the apt one is older than 0.13)
+rofi
+libnotify-bin
+brightnessctl
+pavucontrol
+pamixer
+mpc
+bluez
+power-profiles-daemon
+imagemagick
+fonts-hack
+fonts-noto-color-emoji
+pcmanfm

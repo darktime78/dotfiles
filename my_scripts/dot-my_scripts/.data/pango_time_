@@ -1,9 +1,0 @@
-#!/bin/bash
-
-FIRST_COLOR="#c77a69"
-SECOND_COLOR="#8e665d"
-TEXT_COLOR="#eef6eb"
-
-$HOME/.my_scripts/.data/binary/bracet/bin/bracet "" "`date '+%H:%M'`" \
-	"$FIRST_COLOR" "$SECOND_COLOR" "$TEXT_COLOR"
-echo

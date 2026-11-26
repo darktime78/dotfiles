@@ -1,0 +1,48 @@
+# dunst notification daemon for i3: the same look as mako on sway
+# (wayland/mako/.config/mako/config). man 5 dunst
+# Do not disturb: $mod+n (wm-dnd), dismiss all: Ctrl+Shift+Space,
+# last one back: $mod+Shift+n.
+
+[global]
+    monitor = 0
+    follow = mouse
+    origin = bottom-right
+    offset = 12x12
+    width = 360
+    notification_limit = 5
+    padding = 10
+    horizontal_padding = 10
+    frame_width = 0
+    gap_size = 6
+    corner_radius = 10
+    separator_height = 0
+    font = Hack 10
+    markup = full
+    format = "<b>%s</b>\n%b"
+    alignment = left
+    word_wrap = yes
+    ellipsize = middle
+    show_age_threshold = 60
+    stack_duplicates = true
+    icon_position = left
+    max_icon_size = 48
+    sticky_history = yes
+    history_length = 20
+    browser = /usr/bin/xdg-open
+    mouse_left_click = do_action, close_current
+    mouse_right_click = close_all
+
+[urgency_low]
+    background = "#2F343FCF"
+    foreground = "#eef6eb"
+    timeout = 4
+
+[urgency_normal]
+    background = "#2F343FCF"
+    foreground = "#eef6eb"
+    timeout = 8
+
+[urgency_critical]
+    background = "#B71C1CE6"
+    foreground = "#eef6eb"
+    timeout = 0

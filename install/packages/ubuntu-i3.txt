@@ -1,0 +1,16 @@
+# Ubuntu, i3 (i3/). At the login screen choose the "i3" session.
+xinit
+x11-xserver-utils
+x11-xkb-utils
+i3-wm
+i3lock
+polybar
+picom
+dunst
+feh
+maim
+xclip
+xdotool
+xss-lock
+xautolock
+numlockx

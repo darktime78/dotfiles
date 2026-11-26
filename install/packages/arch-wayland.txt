@@ -1,0 +1,12 @@
+# Arch, sway (wayland/)
+sway
+swaybg
+swayidle
+swaylock
+waybar
+mako
+grim
+slurp
+wl-clipboard
+xorg-xwayland
+xdg-desktop-portal-wlr

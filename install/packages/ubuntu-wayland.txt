@@ -1,0 +1,12 @@
+# Ubuntu, sway (wayland/). At the login screen choose the "Sway" session.
+sway
+swaybg
+swayidle
+swaylock
+waybar
+mako-notifier
+grim
+slurp
+wl-clipboard
+xwayland
+xdg-desktop-portal-wlr

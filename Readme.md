@@ -1,120 +1,126 @@
-# How to install
-## Quick: one script after pacstrap
-On the Arch ISO: partition, mount the root partition on `/mnt` and the EFI partition on
-`/mnt/boot` (BIOS: no EFI partition), then:
-```bash
-# pacstrap -K /mnt base linux linux-firmware
-# curl -LO https://raw.githubusercontent.com/darktime78/My_linux_settings/master/install_arch.sh
-# bash install_arch.sh
-```
-It asks everything first (hostname, user, passwords, timezone, which parts), then installs
-without stopping: fstab, pacman (color, multilib), locale/keymap/timezone, microcode and GPU
-drivers (NVIDIA Pascal/Maxwell such as the MX350 get the 580xx driver from the AUR), bootloader
-(systemd-boot, or GRUB for BIOS / ESP on `/efi`; LUKS, LVM and btrfs are detected), the user with
-sudo, the sway desktop, apps, Docker, yay + AUR packages, and these dotfiles (cloned to
-`~/My_linux_settings`, linked with `makelinks.sh`). Running it again skips what is done.
-Log: `/var/log/install_arch.log`. After the reboot, log in on tty1: sway starts by itself.
+# My Linux (and macOS) settings
 
-## Step by step
-If the line starts with #, you must execute this command as root, if with $, then as the created user.
-## Arch linux installation
-1) Format the partitions
-2) Install basic system
-3) Chroot to installed linux
-4) Create a user
-5) Clone the repository to the created user's home directory (*you can use any other path and folder name, but in the example we will use the default name and home directory*)
-```bash
-$ git clone https://github.com/HardDie/My_linux_settings ~/My_linux_settings --recursive
-```
-6) Install **stow**
-## How to run scripts
-Change directory to ~/My_linux_settings
-```bash
-$ cd ~/My_linux_settings
-```
-### Create links
-Creating symbolic links for all configuration files. After running this command you should see many symbolic links in the home directory and in the .config directory
-```
-$ ./makelinks.sh
-```
-### Initial system setup
-Change directory to ~/.my_scripts
-```bash
-$ cd ~/.my_scripts
-```
-To configure your newly installed linux, run the first_setup.sh script. It will do the setup:
-- locale
-- timezone
-- hostname
-- multilibs for pacman
-- switch pacman to color mode
-- font for the vconsole
-```
-# ./first_setup.sh
-```
-### yay
-Install the **yay** app
-```bash
-$ ./install_yay.sh
-```
-### sway
-Install the necessary applications for the **sway** environment
-```bash
-$ ./check_sway.sh
-```
-### Battery and power saving (laptop)
-Enable power-profiles-daemon and a few safe power saving tweaks. Every step asks first.
-```bash
-# ./setup_power.sh
-```
-### Status bar setup
-The bar is waybar with native modules only (no polling scripts), so nothing needs to be compiled for it.
-To build the application that keeps an independent keyboard layout for each window ( go ):
-```bash
-$ cd ~/.my_scripts/.data/binary
-$ make independent_layout
-```
-(`make` without arguments also builds the old C helper used by the i3 status bar.)
-## Additional configuration
-### Wallpaper
-If you don't have your own image for the wallpaper, you can use the default wallpaper.
-```bash
-$ mkdir ~/.wallpapers
-$ cp /usr/share/backgrounds/sway/Sway_Wallpaper_Blue_1920x1080.png ~/.wallpapers/wallpaper.png
-```
-Or if you have a different screen size, you can see a list of all available wallpapers
-```bash
-$ yay -Ql sway | grep '.png'
-```
-### Status bar
-* Config: `~/.config/sway/waybar.conf`, style: `~/.config/sway/style.css` (style changes are picked up automatically).
-* Restart the bar after editing the config: `$mod+Shift+b`. Log: `$XDG_RUNTIME_DIR/waybar.log`.
-* Clickable: volume (click = mute, right click = mixer, scroll = volume), brightness (scroll),
-  network (click = show traffic), power profile (click = next profile), clock (hover = calendar),
-  eye icon = keep the screen on (disables auto lock).
+One look on three systems: **sway** (Wayland) and **i3** (X11) on Arch or Ubuntu, and
+**AeroSpace + SketchyBar** on macOS. Same keys, same workspaces, same bar colours,
+same shell, tmux, Vim / Neovim and git setup everywhere.
+Fork of [HardDie/My_linux_settings](https://github.com/HardDie/My_linux_settings).
 
-### Idle and sleep
-| Idle time | Action |
+## Install
+
+```sh
+git clone https://github.com/darktime78/My_linux_settings ~/My_linux_settings
+cd ~/My_linux_settings
+./install.sh                     # Linux: sway + waybar   macOS: AeroSpace + SketchyBar
+./install.sh --profile i3        # Linux: i3 + polybar instead (same look and keys)
+./install.sh --profile terminal  # only zsh, tmux, vim / nvim, git (servers, WSL)
+```
+
+| System | What install.sh does |
 |---|---|
-| 4 min | dim the screen |
-| 5 min | lock |
-| 5.5 min | screen off |
-| 15 min | suspend, **only on battery** |
+| Arch | pacman packages from `install/packages/arch*.txt`, missing ones from the AUR (yay) |
+| Ubuntu 24.04+ | apt packages from `install/packages/ubuntu*.txt`, Hack Nerd Font download, Alacritty snap if apt's is too old |
+| macOS | `brew bundle` with `install/packages/Brewfile` (needs Homebrew) |
 
-The screen is always locked before suspend. Fullscreen windows (video, games) and the eye icon in the bar prevent all of it.
-Timeouts are in the `swayidle` block of `~/.config/sway/config`.
+Then on every system: links the config files, installs oh-my-zsh and its plugins,
+makes zsh the login shell, writes the local files (below). Linux desktop: the keyboard
+layout helper, rofi entries for the Docker apps, the weekly Docker image update timer,
+a wallpaper and the lock screen picture.
 
-### Useful shortcuts
-| Keys | Action |
+* `--links-only`: no packages, no downloads. `--dry-run`: only show. `--unlink`: remove the links.
+* Safe to run again, after every `git pull` too. Files in the way are moved to
+  `~/.local/state/dotfiles/backup-DATE/`; broken links of the old stow layout are removed.
+* Links are made per file, never per folder, so programs writing into `~/.config` never
+  write into git.
+* Start: on Linux log in on tty1 and sway / i3 starts (zsh reads
+  `~/.config/dotfiles/profile`), or pick the session at a login screen. On macOS:
+  `open -a AeroSpace` (it starts SketchyBar and the window borders).
+
+### New Arch install, from the ISO
+
+Partition, mount root on `/mnt` and the EFI partition on `/mnt/boot`, then:
+
+```sh
+pacstrap -K /mnt base linux linux-firmware
+curl -LO https://raw.githubusercontent.com/darktime78/My_linux_settings/master/install/arch-bootstrap.sh
+bash arch-bootstrap.sh
+```
+
+It asks everything first (hostname, user, passwords, timezone, desktop: wayland / i3 /
+none), then installs without stopping: fstab, pacman, locale, microcode and GPU drivers
+(NVIDIA Pascal / Maxwell like the MX350 get the 580xx driver from the AUR), the
+bootloader (systemd-boot or GRUB; LUKS, LVM, btrfs detected), the user, services, yay,
+and runs `install.sh` for the desktop. Log: `/var/log/install_arch.log`.
+
+## Layout
+
+```
+common/    every system: zsh, tmux, vim, nvim, git, alacritty, ghostty, clang-format
+linux/     sway and i3: rofi, fontconfig, docker functions, systemd timer, ncmpcpp,
+           scripts/.local/bin (lock, power menu, screenshots, bars, Docker apps ...)
+wayland/   sway, waybar, mako
+i3/        i3, polybar, dunst, picom, .xinitrc, system/ (touchpad, copied to /etc)
+macos/     AeroSpace, SketchyBar
+docker/    images/ (one folder per app) and update.sh
+install/   arch-bootstrap.sh, packages/ (lists per system and profile)
+tools/     make_bars.py, check_parity.py, sync_upstream.py
+docs/      keys.md
+```
+
+Each folder in `common/ linux/ wayland/ i3/ macos/` mirrors `$HOME`:
+`wayland/sway/.config/sway/config` becomes `~/.config/sway/config`.
+
+## Keys
+
+All keys, bars and clicks: [docs/keys.md](docs/keys.md). The most used: `$mod+d`
+launcher, `$mod+c` Docker apps, `$mod+1…0` workspaces, `$mod+Shift+e` power menu,
+`$mod+m` hide the bars, `F12` screenshots. `$mod` is the Windows key (Option on macOS).
+
+## Changing things
+
+| What | Where |
 |---|---|
-| `$mod+d` / `Alt+F2` | application launcher |
-| `$mod+Shift+d` | run a command |
-| `Alt+Tab` | window switcher |
-| `$mod+Shift+e` | power menu (lock / suspend / log out / reboot / power off) |
-| `Ctrl+Alt+Shift+l` | lock |
-| `Ctrl+Alt+Shift+s` | suspend |
-| `$mod+m` | show / hide the bar |
-| `$mod+Shift+b` | restart the bar |
-| `$mod+n` | do not disturb on / off |
-| `Ctrl+Shift+Space` / `$mod+Shift+n` | dismiss all / restore last notification |
-| `F12` / `Shift+F12` / `Ctrl+F12` | screenshot: screen / window / area (saved to ~/Screenshots and copied) |
+| bar colours, icons, which module where (all three bars) | `tools/make_bars.py`, then run it: writes waybar, polybar and SketchyBar configs |
+| keys and window rules | `wayland/sway/.config/sway/config` **and** `i3/i3/.config/i3/config`; `python3 tools/check_parity.py` tells you what differs |
+| this machine only (screens, input) | `~/.config/sway/config.local`, `~/.config/i3/config.local`, `~/.xinitrc.local` |
+| font size of this machine | `~/.config/alacritty/local.toml`, `~/.config/ghostty/local` |
+| your git name and email | `~/.gitconfig.local` (install.sh asks) |
+| LocalAI buttons on the bar | `~/.config/dotfiles/services.conf` |
+| Docker apps | `~/.config/docker/dockerfunc`, then `docker-launchers` for rofi |
+
+Sway and i3 differ only where X11 needs other tools: polybar for waybar, dunst for mako,
+`wm-idle` (xss-lock, xset, xautolock) for swayidle, picom for transparency. The scripts in
+`~/.local/bin` (`wm-lock`, `wm-power-menu`, `wm-screenshot`, `wm-dnd`, `wm-bar` …) work
+in both.
+
+## Docker apps
+
+`$mod+c` lists every app in `~/.config/docker/dockerfunc`: Enter starts it, or stops a
+running one. They are also in the normal launcher (`docker-launchers`).
+
+```sh
+docker-images-update --list                         # what would be built, in order
+docker-images-update base firefox chromium telegram # build these (and their parents)
+docker-images-update nvim-cpp                       # Neovim C++ IDE + LocalAI (docker/images/nvim-cpp)
+```
+
+The `docker-update.timer` rebuilds the images you have once a week, on AC power only.
+
+## Upstream
+
+New commits of HardDie's repo are brought into this layout with
+
+```sh
+python3 tools/sync_upstream.py --list   # what is new, and where each file goes here
+python3 tools/sync_upstream.py          # apply them (git am -3, one commit each)
+```
+
+It rewrites the old paths (`zsh/dot-zshrc` → `common/zsh/.zshrc` …) and skips files
+that have no place here. The last synced commit is in `.upstream-sync`.
+
+## Checks
+
+```sh
+python3 tools/make_bars.py && git diff --stat   # generated bars up to date?
+python3 tools/check_parity.py                   # sway and i3 the same?
+./install.sh --dry-run                          # what install.sh would do here
+```

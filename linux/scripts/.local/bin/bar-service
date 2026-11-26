@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# bar-service: on/off button for a service, used by waybar and polybar
+# (the FIM / Router buttons). Services: ~/.config/dotfiles/services.conf
+#
+#   bar-service NAME                      state as JSON (waybar)
+#   bar-service NAME --polybar ON OFF     state for polybar: prints ON or OFF, where
+#                                         @LABEL@ is replaced by the service label
+#   bar-service NAME toggle               start it if stopped, stop it if running
+
+CONF=~/.config/dotfiles/services.conf
+NAME=$1
+WAYBAR_SIGNAL=9 # "signal" of the custom modules in waybar's config
+
+# shellcheck source=/dev/null
+if ! source "$CONF" 2>/dev/null; then
+	[[ $2 == --polybar ]] && echo "?" || echo '{"text": "?", "alt": "off", "tooltip": "missing '"$CONF"'"}'
+	exit 0
+fi
+
+label=${LABEL[$NAME]:-$NAME}
+running() { [[ -n ${CHECK[$NAME]} ]] && bash -c "${CHECK[$NAME]}" >/dev/null 2>&1; }
+
+case ${2:-} in
+toggle)
+	if running; then
+		bash -c "${STOP[$NAME]}" >/dev/null 2>&1 && notify-send -t 2000 "$label" "Stopped" ||
+			notify-send -u critical "$label" "Could not stop"
+	else
+		bash -c "${START[$NAME]}" >/dev/null 2>&1 && notify-send -t 2000 "$label" "Started" ||
+			notify-send -u critical "$label" "Could not start"
+	fi
+	pkill -x -RTMIN+$WAYBAR_SIGNAL waybar 2>/dev/null # waybar: refresh now
+	"$(dirname "$0")/bar-status" refresh              # polybar: the same
+	;;
+--polybar)
+	if running; then out=$3; else out=$4; fi
+	echo "${out//@LABEL@/$label}"
+	;;
+*)
+	if running; then
+		printf '{"text": "%s", "alt": "on", "class": "on", "tooltip": "%s is running\\nClick: stop"}\n' "$label" "$label"
+	else
+		printf '{"text": "%s", "alt": "off", "class": "off", "tooltip": "%s is stopped\\nClick: start"}\n' "$label" "$label"
+	fi
+	;;
+esac

@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+# suspend-on-battery: called by the idle daemon after a long idle period. Suspends,
+# but only on battery; on AC power (or on a desktop) it does nothing.
+
+shopt -s nullglob
+
+for bat in /sys/class/power_supply/BAT*; do
+	read -r status <"$bat/status" || continue
+	if [[ $status == Discharging ]]; then
+		exec systemctl suspend
+	fi
+done
+
+exit 0

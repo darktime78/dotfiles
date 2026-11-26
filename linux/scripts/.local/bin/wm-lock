@@ -1,0 +1,48 @@
+#!/bin/bash
+#
+# wm-lock: lock the screen (sway: swaylock, i3: i3lock).
+#
+# Returns as soon as the screen is locked, so it works from swayidle's before-sleep
+# hook and from xss-lock: the laptop suspends right away and wakes up locked.
+# While locked, notifications are hidden and the screen turns off after 10 s.
+
+pgrep -x 'swaylock|i3lock' >/dev/null && exit 0
+
+image=~/.wallpapers/lockscreen.png # make-lockscreen creates it
+
+# hide notifications, unless do-not-disturb was already on
+was_dnd=$(wm-dnd status 2>/dev/null)
+[[ $was_dnd == on ]] || wm-dnd on --quiet
+restore() { [[ $was_dnd == on ]] || wm-dnd off --quiet; }
+
+if [[ -n $WAYLAND_DISPLAY ]]; then
+	fg=ffffffff red=d23c3dff none=00000000
+	args=(-f --indicator-radius=40 --indicator-thickness=4 --line-uses-inside
+		--inside-color=$none --ring-color=$fg --separator-color=$none
+		--key-hl-color=$red --bs-hl-color=$red
+		--inside-ver-color=$none --inside-wrong-color=$red
+		--ring-ver-color=$fg --ring-wrong-color=$fg --text-ver-color=$fg --font=Hack)
+	[[ -f $image ]] && args+=(-i "$image") || args+=(-c 1d2026)
+	swaylock "${args[@]}" || { restore; exit 1; }
+
+	( # until unlocked: screen off after 10 s (own swayidle, the main one keeps running)
+		lock_pid=$(pgrep -nx swaylock)
+		swayidle timeout 10 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' &
+		idle=$!
+		[[ -n $lock_pid ]] && tail --pid="$lock_pid" -s 2 -f /dev/null
+		kill "$idle"
+		swaymsg 'output * power on'
+		restore
+	) >/dev/null 2>&1 &
+else
+	args=(-n -e -f)
+	[[ -f $image ]] && args+=(-i "$image") || args+=(-c 1d2026)
+	( # until unlocked: screen off after 10 s, then the normal idle times again
+		xset dpms 10 10 10
+		i3lock "${args[@]}"
+		xset dpms 330 330 330
+		restore
+	) >/dev/null 2>&1 &
+	sleep 0.5 # i3lock has grabbed the screen
+fi
+exit 0

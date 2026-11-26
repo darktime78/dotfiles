@@ -1,0 +1,26 @@
+# Arch, wayland and i3: shared desktop parts (linux/)
+alacritty
+rofi
+rofi-emoji
+rofi-calc
+libnotify
+brightnessctl
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+pavucontrol
+pamixer
+mpc
+bluez
+bluez-utils
+networkmanager
+power-profiles-daemon
+polkit
+xdg-desktop-portal-gtk
+imagemagick
+ttf-hack
+ttf-hack-nerd
+noto-fonts
+noto-fonts-emoji
+pcmanfm-gtk3

@@ -1,0 +1,299 @@
+# sway (Wayland). i3/i3/.config/i3/config is the same setup for X11: keep the two in
+# step (tools/check_parity.py compares their key bindings and window rules).
+# Keys: docs/keys.md. Shared scripts: ~/.local/bin (linux/scripts).
+
+##
+# Variables
+##
+
+set $mod Mod4
+set $bin ~/.local/bin
+
+# Plain names; the icons are added by the bar (tools/make_bars.py)
+set $wspace1  "1"
+set $wspace2  "2"
+set $wspace3  "3"
+set $wspace4  "4"
+set $wspace5  "5"
+set $wspace6  "6"
+set $wspace7  "7"
+set $wspace8  "8"
+set $wspace9  "9"
+set $wspace10 "10"
+
+set $Locker $bin/wm-lock
+set $Font Hack 9
+
+font pango:$Font
+
+
+##
+# Behaviour
+##
+
+set $LCD eDP-1
+# --reload: correct state after "reload" too, --locked: works on the lock screen
+bindswitch --reload --locked lid:on output $LCD disable
+bindswitch --reload --locked lid:off output $LCD enable
+
+# Use Mouse+$mod to drag floating windows
+floating_modifier $mod
+focus_follows_mouse no
+
+# border only when there is more than one window
+default_border pixel 1
+default_floating_border none
+hide_edge_borders smart
+gaps inner 10
+
+
+##
+# Colours (sway / i3 defaults). To change them:
+#                         border   background text     indicator
+# client.focused          #4c7899  #285577    #ffffff  #2e9ef4
+# client.unfocused        #333333  #222222    #888888  #292d2e
+##
+
+
+##
+# Applications
+##
+
+bindsym --to-code Ctrl+Mod1+t exec alacritty
+bindsym --to-code Ctrl+Shift+q kill
+
+# rofi (look: ~/.config/rofi/config.rasi)
+bindsym --to-code Mod1+F2 exec rofi -show drun
+bindsym --to-code $mod+d exec rofi -show drun
+bindsym --to-code $mod+Shift+d exec rofi -show run
+bindsym --to-code Mod1+Tab exec rofi -show window
+bindsym --to-code $mod+period exec rofi -show emoji -modi emoji
+bindsym --to-code $mod+equal exec rofi -show calc -modi calc -no-show-match -no-sort
+# docker apps: start / stop the containers from ~/.config/docker/dockerfunc
+bindsym --to-code $mod+c exec $bin/rofi-docker
+
+
+##
+# Windows and workspaces
+##
+
+bindsym --to-code $mod+Shift+minus move scratchpad
+bindsym --to-code $mod+minus scratchpad show
+
+bindsym --to-code $mod+j focus left
+bindsym --to-code $mod+k focus down
+bindsym --to-code $mod+i focus up
+bindsym --to-code $mod+l focus right
+
+bindsym --to-code $mod+Shift+j move left
+bindsym --to-code $mod+Shift+k move down
+bindsym --to-code $mod+Shift+i move up
+bindsym --to-code $mod+Shift+l move right
+
+bindsym --to-code $mod+Ctrl+Shift+j move workspace to output left
+bindsym --to-code $mod+Ctrl+Shift+l move workspace to output right
+
+bindsym --to-code $mod+h split h
+bindsym --to-code $mod+v split v
+bindsym --to-code $mod+f fullscreen toggle
+bindsym --to-code $mod+w layout tabbed
+bindsym --to-code $mod+e layout toggle split
+bindsym --to-code $mod+Shift+space floating toggle
+# ($mod+space switches the keyboard layout, xkb_options grp:win_space_toggle)
+bindsym --to-code $mod+Tab focus mode_toggle
+
+bindsym --to-code $mod+1 workspace $wspace1
+bindsym --to-code $mod+2 workspace $wspace2
+bindsym --to-code $mod+3 workspace $wspace3
+bindsym --to-code $mod+4 workspace $wspace4
+bindsym --to-code $mod+5 workspace $wspace5
+bindsym --to-code $mod+6 workspace $wspace6
+bindsym --to-code $mod+7 workspace $wspace7
+bindsym --to-code $mod+8 workspace $wspace8
+bindsym --to-code $mod+9 workspace $wspace9
+bindsym --to-code $mod+0 workspace $wspace10
+
+bindsym --to-code $mod+Shift+1 move container to workspace $wspace1
+bindsym --to-code $mod+Shift+2 move container to workspace $wspace2
+bindsym --to-code $mod+Shift+3 move container to workspace $wspace3
+bindsym --to-code $mod+Shift+4 move container to workspace $wspace4
+bindsym --to-code $mod+Shift+5 move container to workspace $wspace5
+bindsym --to-code $mod+Shift+6 move container to workspace $wspace6
+bindsym --to-code $mod+Shift+7 move container to workspace $wspace7
+bindsym --to-code $mod+Shift+8 move container to workspace $wspace8
+bindsym --to-code $mod+Shift+9 move container to workspace $wspace9
+bindsym --to-code $mod+Shift+0 move container to workspace $wspace10
+
+mode "resize" {
+        bindsym --to-code j resize shrink width 10 px or 10 ppt
+        bindsym --to-code k resize grow height 10 px or 10 ppt
+        bindsym --to-code i resize shrink height 10 px or 10 ppt
+        bindsym --to-code l resize grow width 10 px or 10 ppt
+
+        bindsym --to-code Left resize shrink width 1 px or 1 ppt
+        bindsym --to-code Down resize grow height 1 px or 1 ppt
+        bindsym --to-code Up resize shrink height 1 px or 1 ppt
+        bindsym --to-code Right resize grow width 1 px or 1 ppt
+
+        bindsym --to-code Return mode "default"
+        bindsym --to-code Escape mode "default"
+}
+bindsym --to-code $mod+r mode "resize"
+
+
+##
+# Session
+##
+
+# reload the config (waybar reloads style.css by itself)
+bindsym --to-code $mod+Shift+r reload
+# lock / suspend / log out / reboot / power off (asks to confirm)
+bindsym --to-code $mod+Shift+e exec $bin/wm-power-menu
+bindsym --to-code Ctrl+Mod1+Shift+l exec $Locker
+bindsym --to-code Ctrl+Mod1+Shift+s exec systemctl suspend
+
+# bars: show / hide (hidden = stopped), restart
+bindsym --to-code $mod+m exec $bin/wm-bar toggle
+bindsym --to-code $mod+Shift+m exec $bin/wm-bar restart
+
+# notifications: dismiss all / restore last / do not disturb
+bindsym --to-code Ctrl+Shift+space exec makoctl dismiss -a
+bindsym --to-code $mod+Shift+n exec makoctl restore
+bindsym --to-code $mod+n exec $bin/wm-dnd toggle
+
+# screenshots: screen / window / area (~/Screenshots and the clipboard)
+bindsym --to-code --release F12 exec $bin/wm-screenshot screen
+bindsym --to-code --release Shift+F12 exec $bin/wm-screenshot window
+bindsym --to-code --release Ctrl+F12 exec $bin/wm-screenshot area
+
+
+##
+# Media keys (--locked: also on the lock screen)
+##
+
+bindsym --locked XF86AudioRaiseVolume exec pamixer -i 5
+bindsym --locked XF86AudioLowerVolume exec pamixer -d 5
+bindsym --locked XF86AudioMute exec pamixer -t
+bindsym --locked XF86AudioMicMute exec pamixer --default-source -t
+
+bindsym --to-code Ctrl+space exec mpc -q toggle
+bindsym --to-code Ctrl+Prior exec mpc -q prev
+bindsym --to-code Ctrl+Next exec mpc -q next
+bindsym --locked XF86AudioPlay exec mpc -q toggle
+bindsym --locked XF86AudioPrev exec mpc -q prev
+bindsym --locked XF86AudioNext exec mpc -q next
+
+# brightness, 5 % steps, never completely black (user in group "video")
+bindsym --locked XF86MonBrightnessUp exec brightnessctl -q set 5%+
+bindsym --locked XF86MonBrightnessDown exec brightnessctl -q -n1 set 5%-
+
+
+##
+# Window rules. Get info: swaymsg -t get_tree
+# Regular expressions, (?i) = ignore case. Docker apps have the same app_id / class
+# as the normal ones, so they land on the same workspace.
+##
+
+# 1 - browser
+assign [app_id="(?i)(firefox|waterfox)"] $wspace1
+assign [class="(?i)(firefox|waterfox)"] $wspace1
+# 2 - terminal
+assign [app_id="^Alacritty$"] $wspace2
+# 3 - editors: Neovim (alacritty --class nvim), Sublime, IDEs
+assign [app_id="^(nvim|neovide)$"] $wspace3
+assign [app_id="^docker-nvim"] $wspace3
+assign [app_id="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+assign [app_id="^org\.(gnome\.TextEditor|gnome\.gedit|xfce\.mousepad|kde\.kate)$"] $wspace3
+assign [class="^jetbrains-"] $wspace3
+# 4 - Steam (docker)
+assign [class="(?i)^steam$"] $wspace4
+# 5 - Chromium (docker)
+assign [app_id="(?i)^chromium"] $wspace5
+assign [class="(?i)^chromium"] $wspace5
+# 6 - file manager
+assign [app_id="(?i)^pcmanfm"] $wspace6
+assign [class="(?i)^pcmanfm"] $wspace6
+# 7 - mail
+assign [app_id="(?i)(thunderbird|geary)"] $wspace7
+assign [class="(?i)(thunderbird|geary)"] $wspace7
+# 8 - Claude: desktop app or the web app window (docker "claude")
+assign [app_id="(?i)claude"] $wspace8
+assign [class="(?i)claude"] $wspace8
+# 9 - chat: Telegram, Discord
+assign [app_id="(?i)telegram"] $wspace9
+assign [class="(?i)(telegram|discord)"] $wspace9
+# 10 - video editing: Kdenlive, DaVinci Resolve, Shotcut
+assign [app_id="(?i)(kdenlive|shotcut)"] $wspace10
+assign [class="(?i)^(resolve|kdenlive|shotcut)$"] $wspace10
+
+# floating windows
+for_window [app_id="(?i)(pavucontrol|blueman-manager|nm-connection-editor|gnome-calculator)"] floating enable
+for_window [class="(?i)(tor browser|virtualbox)"] floating enable
+# terminal popups started from the bar (network / bluetooth click)
+for_window [app_id="^(nmtui|bluetoothctl)$"] floating enable, resize set 760 520
+for_window [window_role="(pop-up|dialog)"] floating enable
+
+# no lock / screen off while something is fullscreen (video, game)
+for_window [app_id=".*"] inhibit_idle fullscreen
+for_window [class=".*"] inhibit_idle fullscreen
+
+
+##
+# Idle and power saving
+#   4 min dim (any input restores), 5 min lock, 5.5 min screen off,
+#   15 min suspend (only on battery). Always locked before sleep.
+#   The eye button on the bar turns all of this off.
+##
+
+exec swayidle -w \
+    timeout 240 'brightnessctl -q -s set 10%' resume 'brightnessctl -q -r' \
+    timeout 300 '~/.local/bin/wm-lock' \
+    timeout 330 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
+    timeout 900 '~/.local/bin/suspend-on-battery' \
+    before-sleep '~/.local/bin/wm-lock'
+
+
+##
+# Autostart
+##
+
+# one waybar draws both bars (log: $XDG_RUNTIME_DIR/wm-bar.log)
+exec $bin/wm-bar start
+# notifications (~/.config/mako/config)
+exec mako
+# low battery notifications at 15 % and 5 %
+exec $bin/battery-notify 15 5
+# keyboard layout per window (install.sh builds it; skipped if missing)
+exec [ -x $bin/sway_independent_layouts ] && $bin/sway_independent_layouts
+# Hack as the GTK UI font too (file dialogs, pavucontrol, ...)
+exec gsettings set org.gnome.desktop.interface font-name 'Hack 10'
+exec gsettings set org.gnome.desktop.interface monospace-font-name 'Hack 10'
+
+
+##
+# Input and output. Get info: swaymsg -t get_outputs / get_inputs
+##
+
+output "*" bg ~/.wallpapers/wallpaper.png fill
+# laptop left, monitor right (outputs must not overlap)
+output eDP-1 resolution 2256x1504 position 0,0
+output DP-5 resolution 2560x1440 position 2256,0
+# monitor on the left instead: DP-5 position 0,0 / eDP-1 position 2560,0
+# text too small on the laptop panel: output eDP-1 scale 1.5
+
+input type:touchpad {
+    tap enabled
+    dwt enabled
+}
+
+input type:keyboard {
+    xkb_layout "us,ru"
+    xkb_options "grp:win_space_toggle"
+}
+
+# machine specific settings, not in git
+include ~/.config/sway/config.local
+
+# exports WAYLAND_DISPLAY / SWAYSOCK to systemd and D-Bus (portals, screen sharing)
+include /etc/sway/config.d/*

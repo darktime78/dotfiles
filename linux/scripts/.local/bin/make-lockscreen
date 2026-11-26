@@ -1,0 +1,28 @@
+#!/bin/bash
+#
+# make-lockscreen [image]: make the lock screen background (~/.wallpapers/lockscreen.png),
+# a dimmed and blurred copy of your wallpaper at the size of your screen.
+# Default image: ~/.wallpapers/wallpaper.png. Needs ImageMagick.
+
+src=${1:-$HOME/.wallpapers/wallpaper.png}
+out=~/.wallpapers/lockscreen.png
+[[ -r $src ]] || { echo "usage: make-lockscreen [image]   (no $src)" >&2; exit 1; }
+
+if command -v magick >/dev/null; then im=magick; elif command -v convert >/dev/null; then im=convert
+else echo "install ImageMagick" >&2; exit 1; fi
+
+# size of the largest screen
+if [[ -n $SWAYSOCK ]]; then
+	res=$(swaymsg -t get_outputs | jq -r 'map(select(.active)) | max_by(.rect.width) | "\(.rect.width)x\(.rect.height)"')
+else
+	res=$(xrandr --current | awk '/\*/ {print $1}' | sort -t x -k1 -n | tail -1)
+fi
+[[ $res =~ ^[0-9]+x[0-9]+$ ]] || res=1920x1080
+
+mkdir -p "$(dirname "$out")"
+# fit, dim 40 %, blur (small resize + sigma is much faster than a big blur radius)
+$im "$src" -resize "$res^" -gravity center -extent "$res" \
+	-fill black -colorize 40% \
+	-filter Gaussian -resize 20% -define filter:sigma=0.6 -resize "$res^" \
+	-gravity center -extent "$res" "$out" &&
+	echo "lock screen: $out ($res)"

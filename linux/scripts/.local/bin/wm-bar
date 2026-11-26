@@ -1,0 +1,89 @@
+#!/bin/bash
+#
+# wm-bar start|toggle|restart: the bars (sway: waybar, i3: polybar top + bottom).
+#
+#   start    at login (sway / i3 config)
+#   toggle   hide / show ($mod+m); hidden bars are stopped and use no CPU
+#   restart  re-read the config ($mod+Shift+m)
+#
+# waybar is restarted if it crashes; quick repeated crashes (a typo in the config)
+# back off and give up with a notification instead of a busy loop.
+
+RUNDIR=${XDG_RUNTIME_DIR:-/tmp}
+HIDDEN=$RUNDIR/wm-bar.hidden
+LOG=$RUNDIR/wm-bar.log
+
+if [[ -n $WAYLAND_DISPLAY ]]; then
+	BAR=waybar
+else
+	BAR=polybar
+fi
+running() { pgrep -x "$BAR" >/dev/null; }
+
+waybar_loop() {
+	exec 9>"$RUNDIR/wm-bar.lock"
+	flock -n 9 || exit 0
+	: >"$LOG"
+	local fails=0 started code
+	while [[ -S ${SWAYSOCK:-/nonexistent} && ! -e $HIDDEN ]]; do
+		started=$SECONDS
+		waybar >>"$LOG" 2>&1 9>&-
+		code=$?
+		[[ -e $HIDDEN ]] && break
+		if ((code < 128 && SECONDS - started < 10)); then ((fails++)); else fails=0; fi
+		if ((fails >= 5)); then
+			notify-send -u critical "Waybar keeps crashing" "See $LOG"
+			break
+		fi
+		sleep $((fails * 2 + 1))
+	done
+}
+
+polybar_start() {
+	: >"$LOG"
+	local m d
+	# names polybar can't find by itself (config.ini reads them with ${env:...})
+	for d in /sys/class/power_supply/*; do
+		case $(cat "$d/type" 2>/dev/null) in
+		Battery) export BAR_BATTERY=${d##*/} ;;
+		Mains) export BAR_ADAPTER=${d##*/} ;;
+		esac
+	done
+	for d in /sys/class/backlight/*; do [[ -e $d ]] && export BAR_BACKLIGHT=${d##*/} && break; done
+	if mountpoint -q /home; then export BAR_DISK=/home; else export BAR_DISK=/; fi
+	# one top and one bottom bar on every monitor
+	for m in $(polybar --list-monitors 2>/dev/null | cut -d: -f1); do
+		MONITOR=$m setsid -f polybar top >>"$LOG" 2>&1
+		MONITOR=$m setsid -f polybar bottom >>"$LOG" 2>&1
+	done
+}
+
+start() {
+	rm -f "$HIDDEN"
+	if [[ $BAR == waybar ]]; then
+		setsid -f "$0" _loop >/dev/null 2>&1
+	else
+		running || polybar_start
+	fi
+}
+
+stop() { pkill -x "$BAR"; }
+
+case ${1:-start} in
+_loop) waybar_loop ;;
+start) start ;;
+toggle)
+	if running; then touch "$HIDDEN"; stop; else start; fi
+	;;
+restart)
+	rm -f "$HIDDEN"
+	if [[ $BAR == waybar ]]; then
+		running && stop || start # the loop starts it again
+	else
+		stop
+		while running; do sleep 0.2; done
+		polybar_start
+	fi
+	;;
+*) echo "usage: wm-bar start|toggle|restart" >&2; exit 1 ;;
+esac

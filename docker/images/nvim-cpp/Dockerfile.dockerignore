@@ -1,0 +1,4 @@
+# The build context is the whole dotfiles repo; send only what the image uses.
+*
+!common/nvim/
+!docker/images/nvim-cpp/

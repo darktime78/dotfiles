@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+# wm-screenshot [screen|window|area]   (old flags: -a = window, -r = area)
+# Saves to ~/Screenshots and copies to the clipboard.
+# sway: grim + slurp + wl-copy, i3: maim + xdotool + xclip.
+
+mode=${1:-screen}
+case $mode in -a) mode=window ;; -r) mode=area ;; esac
+
+dir=~/Screenshots
+mkdir -p "$dir"
+file="$dir/$(date '+%Y-%m-%d_%H-%M-%S').png"
+
+if [[ -n $WAYLAND_DISPLAY ]]; then
+	case $mode in
+	window) grim -g "$(swaymsg -t get_tree | jq -r '.. | select(.focused?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"')" "$file" ;;
+	area) geo=$(slurp) || exit 0; grim -g "$geo" "$file" ;;
+	*) grim "$file" ;;
+	esac
+	[[ -f $file ]] && wl-copy --type image/png <"$file"
+else
+	case $mode in
+	window) maim -i "$(xdotool getactivewindow)" "$file" ;;
+	area) maim -s "$file" || exit 0 ;;
+	*) maim "$file" ;;
+	esac
+	[[ -f $file ]] && xclip -selection clipboard -t image/png -i "$file"
+fi
+
+[[ -f $file ]] && notify-send -i "$file" "Screenshot" "$(basename "$file") saved and copied"

@@ -1,0 +1,20 @@
+# Arch, every profile: shell and tools (common/). One package per line.
+# Packages the repos don't have are tried with yay (AUR) if it is installed.
+git
+zsh
+tmux
+vim
+neovim
+htop
+curl
+wget
+unzip
+jq
+ripgrep
+fd
+fzf
+go
+clang
+socat
+aria2
+yt-dlp

@@ -1,0 +1,9 @@
+#!/bin/bash
+#
+# wm-dim: dim the screen until any input (xss-lock runs it as the "notify" step on i3).
+# xss-lock stops it on input or when the locker starts; then the brightness comes back.
+
+brightnessctl -q -s set 10% || exit 0
+sleep infinity &
+trap 'kill $! 2>/dev/null; brightnessctl -q -r; exit 0' TERM INT HUP
+wait

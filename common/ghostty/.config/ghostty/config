@@ -1,0 +1,36 @@
+# Ghostty: the same look as Alacritty (common/alacritty). The macOS terminal, because
+# the Homebrew Alacritty cask is disabled; works on Linux too.
+# Machine-specific settings (font size): ~/.config/ghostty/local, written by install.sh.
+
+font-family = Hack Nerd Font
+font-size = 10
+background = #000000
+background-opacity = 0.8
+window-decoration = false
+macos-titlebar-style = hidden
+macos-option-as-alt = true
+mouse-hide-while-typing = true
+# scrollback is tmux's job (as in Alacritty)
+scrollback-limit = 0
+confirm-close-surface = false
+bold-is-bright = true
+
+# Tango palette, as in alacritty.toml
+palette = 0=#2E3436
+palette = 1=#CC0000
+palette = 2=#4E9A06
+palette = 3=#C4A000
+palette = 4=#3465A4
+palette = 5=#75507B
+palette = 6=#06989A
+palette = 7=#D3D7CF
+palette = 8=#555753
+palette = 9=#EF2929
+palette = 10=#8AE234
+palette = 11=#FCE94F
+palette = 12=#729FCF
+palette = 13=#AD7FA8
+palette = 14=#34E2E2
+palette = 15=#EEEEEC
+
+config-file = ?local

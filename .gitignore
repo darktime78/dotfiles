@@ -1,1 +1,4 @@
-vim/dot-vim/.netrwhist
+common/vim/.vim/.netrwhist
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,5 @@
+#!/bin/bash
+# docker-images-update: update the Docker images of these dotfiles (docker/update.sh).
+# Used by docker-update.timer; see docker/update.sh --help.
+here=$(dirname "$(readlink -f "$0")")
+exec "$here/../../../../docker/update.sh" "$@"

@@ -1,0 +1,250 @@
+# i3 (X11): the same setup as wayland/sway/.config/sway/config. Keep the two in step
+# (tools/check_parity.py compares their key bindings and window rules).
+# Keys: docs/keys.md. Shared scripts: ~/.local/bin (linux/scripts).
+# Differences, because X11 works differently:
+#   bar          polybar instead of waybar (same look, tools/make_bars.py)
+#   idle         wm-idle (xss-lock + xset + xautolock) instead of swayidle
+#   notifications dunst instead of mako (same look)
+#   compositor   picom (transparent terminals)
+#   lid switch   handled by systemd-logind; no per-window keyboard layout
+
+##
+# Variables
+##
+
+set $mod Mod4
+set $bin ~/.local/bin
+
+set $wspace1  "1"
+set $wspace2  "2"
+set $wspace3  "3"
+set $wspace4  "4"
+set $wspace5  "5"
+set $wspace6  "6"
+set $wspace7  "7"
+set $wspace8  "8"
+set $wspace9  "9"
+set $wspace10 "10"
+
+set $Locker $bin/wm-lock
+set $Font Hack 9
+
+font pango:$Font
+
+
+##
+# Behaviour
+##
+
+floating_modifier $mod
+focus_follows_mouse no
+
+default_border pixel 1
+default_floating_border none
+hide_edge_borders smart
+gaps inner 10
+
+
+##
+# Colours (sway / i3 defaults). To change them:
+#                         border   background text     indicator
+# client.focused          #4c7899  #285577    #ffffff  #2e9ef4
+# client.unfocused        #333333  #222222    #888888  #292d2e
+##
+
+
+##
+# Applications
+##
+
+bindsym Ctrl+Mod1+t exec --no-startup-id alacritty
+bindsym Ctrl+Shift+q kill
+
+bindsym Mod1+F2 exec --no-startup-id rofi -show drun
+bindsym $mod+d exec --no-startup-id rofi -show drun
+bindsym $mod+Shift+d exec --no-startup-id rofi -show run
+bindsym Mod1+Tab exec --no-startup-id rofi -show window
+bindsym $mod+period exec --no-startup-id rofi -show emoji -modi emoji
+bindsym $mod+equal exec --no-startup-id rofi -show calc -modi calc -no-show-match -no-sort
+bindsym $mod+c exec --no-startup-id $bin/rofi-docker
+
+
+##
+# Windows and workspaces
+##
+
+bindsym $mod+Shift+minus move scratchpad
+bindsym $mod+minus scratchpad show
+
+bindsym $mod+j focus left
+bindsym $mod+k focus down
+bindsym $mod+i focus up
+bindsym $mod+l focus right
+
+bindsym $mod+Shift+j move left
+bindsym $mod+Shift+k move down
+bindsym $mod+Shift+i move up
+bindsym $mod+Shift+l move right
+
+bindsym $mod+Ctrl+Shift+j move workspace to output left
+bindsym $mod+Ctrl+Shift+l move workspace to output right
+
+bindsym $mod+h split h
+bindsym $mod+v split v
+bindsym $mod+f fullscreen toggle
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+bindsym $mod+Shift+space floating toggle
+# ($mod+space switches the keyboard layout, grp:win_space_toggle)
+bindsym $mod+Tab focus mode_toggle
+
+bindsym $mod+1 workspace $wspace1
+bindsym $mod+2 workspace $wspace2
+bindsym $mod+3 workspace $wspace3
+bindsym $mod+4 workspace $wspace4
+bindsym $mod+5 workspace $wspace5
+bindsym $mod+6 workspace $wspace6
+bindsym $mod+7 workspace $wspace7
+bindsym $mod+8 workspace $wspace8
+bindsym $mod+9 workspace $wspace9
+bindsym $mod+0 workspace $wspace10
+
+bindsym $mod+Shift+1 move container to workspace $wspace1
+bindsym $mod+Shift+2 move container to workspace $wspace2
+bindsym $mod+Shift+3 move container to workspace $wspace3
+bindsym $mod+Shift+4 move container to workspace $wspace4
+bindsym $mod+Shift+5 move container to workspace $wspace5
+bindsym $mod+Shift+6 move container to workspace $wspace6
+bindsym $mod+Shift+7 move container to workspace $wspace7
+bindsym $mod+Shift+8 move container to workspace $wspace8
+bindsym $mod+Shift+9 move container to workspace $wspace9
+bindsym $mod+Shift+0 move container to workspace $wspace10
+
+mode "resize" {
+        bindsym j resize shrink width 10 px or 10 ppt
+        bindsym k resize grow height 10 px or 10 ppt
+        bindsym i resize shrink height 10 px or 10 ppt
+        bindsym l resize grow width 10 px or 10 ppt
+
+        bindsym Left resize shrink width 1 px or 1 ppt
+        bindsym Down resize grow height 1 px or 1 ppt
+        bindsym Up resize shrink height 1 px or 1 ppt
+        bindsym Right resize grow width 1 px or 1 ppt
+
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+
+##
+# Session
+##
+
+# restart i3 in place (re-reads the config, keeps the windows)
+bindsym $mod+Shift+r restart
+bindsym $mod+Shift+e exec --no-startup-id $bin/wm-power-menu
+bindsym Ctrl+Mod1+Shift+l exec --no-startup-id $Locker
+bindsym Ctrl+Mod1+Shift+s exec --no-startup-id systemctl suspend
+
+bindsym $mod+m exec --no-startup-id $bin/wm-bar toggle
+bindsym $mod+Shift+m exec --no-startup-id $bin/wm-bar restart
+
+bindsym Ctrl+Shift+space exec --no-startup-id dunstctl close-all
+bindsym $mod+Shift+n exec --no-startup-id dunstctl history-pop
+bindsym $mod+n exec --no-startup-id $bin/wm-dnd toggle
+
+bindsym --release F12 exec --no-startup-id $bin/wm-screenshot screen
+bindsym --release Shift+F12 exec --no-startup-id $bin/wm-screenshot window
+bindsym --release Ctrl+F12 exec --no-startup-id $bin/wm-screenshot area
+
+
+##
+# Media keys
+##
+
+bindsym XF86AudioRaiseVolume exec --no-startup-id pamixer -i 5
+bindsym XF86AudioLowerVolume exec --no-startup-id pamixer -d 5
+bindsym XF86AudioMute exec --no-startup-id pamixer -t
+bindsym XF86AudioMicMute exec --no-startup-id pamixer --default-source -t
+
+bindsym Ctrl+space exec --no-startup-id mpc -q toggle
+bindsym Ctrl+Prior exec --no-startup-id mpc -q prev
+bindsym Ctrl+Next exec --no-startup-id mpc -q next
+bindsym XF86AudioPlay exec --no-startup-id mpc -q toggle
+bindsym XF86AudioPrev exec --no-startup-id mpc -q prev
+bindsym XF86AudioNext exec --no-startup-id mpc -q next
+
+bindsym XF86MonBrightnessUp exec --no-startup-id brightnessctl -q set 5%+
+bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl -q -n1 set 5%-
+
+
+##
+# Window rules. Get info: xprop (click the window)
+# Same workspaces as on sway; X11 has class / instance instead of app_id.
+##
+
+# 1 - browser
+assign [class="(?i)(firefox|waterfox)"] $wspace1
+# 2 - terminal
+assign [class="^Alacritty$"] $wspace2
+# 3 - editors: Neovim (alacritty --class nvim), Sublime, IDEs
+assign [class="^(nvim|neovide)$"] $wspace3
+assign [instance="^nvim$"] $wspace3
+assign [class="^docker-nvim"] $wspace3
+assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+assign [class="(?i)^(gnome-text-editor|gedit|mousepad|kate)$"] $wspace3
+assign [class="^jetbrains-"] $wspace3
+# 4 - Steam (docker)
+assign [class="(?i)^steam$"] $wspace4
+# 5 - Chromium (docker)
+assign [class="(?i)^chromium"] $wspace5
+# 6 - file manager
+assign [class="(?i)^pcmanfm"] $wspace6
+# 7 - mail
+assign [class="(?i)(thunderbird|geary)"] $wspace7
+# 8 - Claude
+assign [class="(?i)claude"] $wspace8
+# 9 - chat
+assign [class="(?i)(telegram|discord)"] $wspace9
+# 10 - video editing
+assign [class="(?i)^(resolve|kdenlive|shotcut)$"] $wspace10
+
+for_window [class="(?i)(pavucontrol|blueman-manager|nm-connection-editor|gnome-calculator)"] floating enable
+for_window [class="(?i)(tor browser|virtualbox)"] floating enable
+for_window [class="^(nmtui|bluetoothctl)$"] floating enable, resize set 760 520
+for_window [window_role="(pop-up|dialog)"] floating enable
+
+
+##
+# Idle and power saving: the same steps as swayidle on sway (see wm-idle)
+#   4 min dim, 5 min lock, 5.5 min screen off, 15 min suspend (on battery only)
+##
+
+exec --no-startup-id $bin/wm-idle start
+
+
+##
+# Autostart
+##
+
+exec --no-startup-id $bin/wm-bar start
+exec --no-startup-id dunst
+exec --no-startup-id $bin/battery-notify 15 5
+# compositor: transparent terminals, no tearing (~/.config/picom/picom.conf)
+exec --no-startup-id picom -b
+exec --no-startup-id gsettings set org.gnome.desktop.interface font-name 'Hack 10'
+exec --no-startup-id gsettings set org.gnome.desktop.interface monospace-font-name 'Hack 10'
+
+
+##
+# Output. Get info: xrandr / xinput
+# (touchpad tap-to-click: /etc/X11/xorg.conf.d/30-touchpad.conf, from i3/system)
+##
+
+# screens (laptop left, monitor right) and keyboard layouts (us,ru, Win+Space) are set
+# in ~/.xinitrc before i3 starts, so the bars see the final screens.
+exec --no-startup-id feh --no-fehbg --bg-fill ~/.wallpapers/wallpaper.png
+
+# machine specific settings, not in git
+include ~/.config/i3/config.local
