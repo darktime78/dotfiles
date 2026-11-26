@@ -7,7 +7,10 @@
 local M = {}
 
 local uv = vim.uv or vim.loop
-local MAX = 24000 -- characters per context, keeps prompts reasonable
+-- characters per context; local models read prompts slowly, so options.lua lowers this
+local function max_chars()
+  return vim.g.ai_context_max_chars or 24000
+end
 
 local function notify(msg, level)
   vim.notify(msg, level or vim.log.levels.INFO, { title = "opencode" })
@@ -25,8 +28,9 @@ local function clip(s, what)
   if not s or vim.trim(s) == "" then
     return nil
   end
-  if #s > MAX then
-    s = s:sub(1, MAX) .. ("\n… (%s truncated at %d characters)"):format(what, MAX)
+  local max = max_chars()
+  if #s > max then
+    s = s:sub(1, max) .. ("\n… (%s truncated at %d characters)"):format(what, max)
   end
   return s
 end

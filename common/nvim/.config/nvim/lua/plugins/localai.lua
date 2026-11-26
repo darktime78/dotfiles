@@ -32,7 +32,7 @@ return {
         endpoint_fim = L.fim_url .. "/infill", -- localai-fim (Qwen2.5-Coder, MX350)
         endpoint_inst = L.router_url .. "/v1/chat/completions", -- localai-router
         model_inst = "qwen-agent",
-        auto_fim = true,
+        auto_fim = vim.g.localai_fim ~= false, -- options.lua: false = only on Ctrl-F
         show_info = 0,
         keymap_fim_trigger = "<C-f>",
         keymap_fim_accept_full = accept,
@@ -43,7 +43,25 @@ return {
         keymap_inst_rerun = "<leader>aE",
         keymap_inst_continue = "<leader>ak",
         keymap_debug_toggle = "",
+        -- context and time limits: the MX350 is slow, so give it time but cap it
+        n_prefix = 192, -- lines before the cursor
+        n_suffix = 64, -- lines after the cursor
+        n_predict = 96, -- max tokens per suggestion
+        t_max_prompt_ms = 600,
+        t_max_predict_ms = 1500,
       }
+
+      -- suggestion colours that fit solarized-osaka (old and new highlight names)
+      local function hl()
+        for _, g in ipairs({ "llama_hl_hint", "llama_hl_fim_hint" }) do
+          vim.api.nvim_set_hl(0, g, { fg = "#657b83", italic = true })
+        end
+        for _, g in ipairs({ "llama_hl_info", "llama_hl_fim_info" }) do
+          vim.api.nvim_set_hl(0, g, { fg = "#859900" })
+        end
+      end
+      hl()
+      vim.api.nvim_create_autocmd("ColorScheme", { callback = hl })
     end,
     config = function()
       L.setup()
@@ -69,12 +87,18 @@ return {
     "nvim-lualine/lualine.nvim",
     optional = true,
     opts = function(_, opts)
-      table.insert(opts.sections.lualine_x, 1, { L.statusline, color = L.statusline_color })
+      table.insert(opts.sections.lualine_x, 1, {
+        L.statusline,
+        color = L.statusline_color,
+        cond = function()
+          return vim.g.localai_statusline ~= false
+        end,
+      })
     end,
   },
 
   {
     "folke/which-key.nvim",
-    opts = { spec = { { "<leader>a", group = "local AI", icon = { icon = "󰚩 ", color = "green" } } } },
+    opts = { spec = { { "<leader>a", group = "local AI (Qwen)", icon = { icon = "󰚩 ", color = "green" } } } },
   },
 }
