@@ -1,4 +1,26 @@
 -- From craftzdog's ui.lua
+-- Dashboard logo. Snacks centres every header line on its own, so lines of different width
+-- shift against each other and the letters fall apart. Every logo line is padded to the same
+-- width, and the subtitle gets its own lines below the logo.
+local function header()
+  local logo = {
+    " ██████╗      ██╗         ██╗    ",
+    "██╔════╝      ██║         ██║    ",
+    "██║       ██████████╗ ██████████╗",
+    "██║       ╚═══██╔═══╝ ╚═══██╔═══╝",
+    "╚██████╗      ██║         ██║    ",
+    " ╚═════╝      ╚═╝         ╚═╝    ",
+  }
+  local width = 0
+  for _, line in ipairs(logo) do
+    width = math.max(width, vim.api.nvim_strwidth(line))
+  end
+  for i, line in ipairs(logo) do
+    logo[i] = line .. string.rep(" ", width - vim.api.nvim_strwidth(line))
+  end
+  return table.concat(logo, "\n") .. "\n\nn e o v i m  ·  c++ workbench"
+end
+
 return {
   -- skip clangd's "No information available" on K, and send notifications to the
   -- desktop while Neovim is in the background (long builds, coverage, perf, OpenCode)
@@ -90,13 +112,7 @@ return {
     opts = {
       dashboard = {
         preset = {
-          header = [[
- ██████╗    ██╗      ██╗
-██╔════╝    ██║      ██║
-██║      ████████╗████████╗     n e o v i m
-██║      ╚══██╔══╝╚══██╔══╝     c++ workbench
-╚██████╗    ╚═╝      ╚═╝
- ╚═════╝]],
+          header = header(),
           keys = {
             { icon = " ", key = "f", desc = "Find file", action = ":lua Snacks.dashboard.pick('files')" },
             { icon = " ", key = "g", desc = "Grep", action = ":lua Snacks.dashboard.pick('live_grep')" },

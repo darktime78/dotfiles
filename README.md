@@ -17,6 +17,7 @@ A LazyVim-based config like [craftzdog/dotfiles-public](https://github.com/craft
 | Hot source lines highlighted in the editor | perfanno.nvim |
 | Git: hunks, blame, lazygit, diffs, history, merge conflicts, branch review | gitsigns, Snacks lazygit, diffview.nvim, git-conflict.nvim |
 | AI pair programming with build / test / coverage / perf / git context | OpenCode + opencode.nvim |
+| Local autocomplete and local Qwen agent/chat (no cloud) | llama.vim + llama.cpp (arch-local-ai) |
 
 ## Layout
 
@@ -24,8 +25,8 @@ A LazyVim-based config like [craftzdog/dotfiles-public](https://github.com/craft
 ~/.config/nvim
 ├── init.lua
 ├── lua/config/{lazy,options,keymaps,autocmds}.lua
-├── lua/plugins/{colorscheme,coding,editor,ui,cpp,cmake,dap,test,coverage,formatting,snippets,perf,git,opencode}.lua
-├── lua/util/{run,target,gdb_dashboard,coverage,perf,ai_context,discipline}.lua
+├── lua/plugins/{colorscheme,coding,editor,ui,cpp,cmake,dap,test,coverage,formatting,snippets,perf,git,opencode,localai}.lua
+├── lua/util/{run,target,gdb_dashboard,coverage,perf,ai_context,discipline,localai}.lua
 ├── luasnippets/cpp.lua
 └── extras/gdbinit.d/init          -> copy to ~/.gdbinit.d/init
 project-template/                   -> sample CMake + GTest project to try everything
@@ -260,6 +261,22 @@ Context placeholders you can type in any ask (Tab completes them):
 Typical loops: build fails → `<leader>ob`; tests pass but coverage has red bars → `<leader>oc`;
 profile shows a red hotspot → `a` in the table or `<leader>op` on the function; before pushing →
 `<leader>oB`, then `<leader>gM` to read the diff yourself.
+
+## Local AI (Qwen on this laptop)
+
+arch-local-ai sets up llama.cpp, the models and OpenCode on Arch Linux. With it running
+(on the host, or the nvim-cpp container talking to the host):
+
+- **Autocomplete:** grey ghost text while typing, from Qwen2.5-Coder-1.5B on the MX350. `Tab`
+  accepts all, `Shift-Tab` one line, `Ctrl-Right` one word, `<leader>at` toggles it.
+  `vim.g.localai_fim = false` in `options.lua`: suggestions only when you press `Ctrl-F`.
+- **OpenCode:** every `<leader>o…` key uses the local Qwen3.5-4B agent; the router is
+  started first if it is down. Tab in OpenCode switches to the `chat` agent (Qwen3.5-9B).
+- **Controls:** `<leader>a…` or `:LocalAI start|stop|status|logs|bench|chat`. The status line
+  shows `󰚩 fim● qwen●` (green: both up, yellow: one, grey: none).
+
+Local models read prompts slowly, so `vim.g.ai_context_max_chars = 8000` caps `@diff`, `@branch`
+and `@uncovered` (raise it if you point OpenCode at a cloud model).
 
 ## craftzdog's plugins and how they are used here
 

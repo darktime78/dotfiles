@@ -20,10 +20,10 @@ opt.colorcolumn = "100"
 opt.path:append({ "**" })
 opt.wildignore:append({ "*/build/*", "*/.cache/*" })
 
-vim.g.autoformat = true
+vim.g.autoformat = true -- format on save (clang-format / cmake-format / mbake)
 vim.g.lazyvim_picker = "snacks" -- telescope is only used for the `sf` file browser
 vim.g.cowboy = false -- true: craftzdog's "Hold it Cowboy!" warning when spamming h/j/k/l
-vim.g.craftzdog_window_keys = true -- ss / sv / sh / sj / sk / sl window keys -- format on save (clang-format / cmake-format / mbake)
+vim.g.craftzdog_window_keys = true -- ss / sv / sh / sj / sk / sl window keys
 
 -- Build dir of the "coverage" CMake preset (see project-template/CMakePresets.json)
 vim.g.cpp_coverage_build_dir = "build/coverage"
@@ -40,3 +40,12 @@ vim.g.perf_warm_percent = 1 -- yellow rows
 -- git / OpenCode -------------------------------------------------------------
 -- vim.g.git_main_branch = "origin/main"  -- base for <leader>gM and @branch (auto-detected)
 -- vim.g.opencode_run_args = { "--model", "provider/model" }  -- extra args for `opencode run`
+
+-- local AI: Qwen via llama.cpp (arch-local-ai, lua/plugins/localai.lua) ------
+-- (ports come from ~/.config/localai/localai.conf, in the container from its environment)
+vim.g.localai_fim = true -- ghost-text autocomplete while typing (false = only on Ctrl-F)
+-- vim.g.localai_fim_accept = "<M-a>" -- accept key instead of <Tab>
+vim.g.localai_statusline = true -- 󰚩 fim● qwen● in the status line
+-- ~2.5k tokens per @diff/@branch/@uncovered context: the 4B model reads ~50-150 tokens/s,
+-- so 24k characters (the cloud default) would add minutes to every prompt
+vim.g.ai_context_max_chars = 8000
