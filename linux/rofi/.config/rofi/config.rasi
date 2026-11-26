@@ -3,6 +3,8 @@ configuration {
   // missing plugin (rofi-emoji, rofi-calc) never breaks the normal launcher
   modi: "window,run,drun";
   show-icons: true;
+  // the same icons as PCManFM (folder-color); missing -> Adwaita
+  icon-theme: "Papirus-Folders";
   font: "Hack 11";
   terminal: "alacritty";
   drun-display-format: "{name}";

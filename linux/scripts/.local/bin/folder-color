@@ -1,0 +1,157 @@
+#!/bin/bash
+#
+# folder-color: coloured folder icons for PCManFM and every GTK app (file dialogs,
+# rofi), on top of the Papirus icon theme.
+#
+#   folder-color                 green (default)
+#   folder-color teal            any Papirus colour: green teal darkcyan cyan nordic
+#                                palebrown brown grey bluegrey blue indigo violet
+#                                magenta pink red carmine orange deeporange
+#                                paleorange yellow black white yaru breeze adwaita
+#   folder-color '#5fa86f'       any colour you like (folder, its back and the symbol
+#                                on it are shaded from it)
+#   folder-color green --dark    also a dark GTK theme (PCManFM matches the bars)
+#   folder-color --light         back to the light GTK theme
+#   folder-color --apply         set the saved choice again (at login, sway / i3 config)
+#
+# Makes a small icon theme in ~/.local/share/icons/Papirus-Folders: only the folder
+# icons, everything else comes from Papirus. Nothing system-wide changes, and package
+# updates of Papirus don't undo it. Restart PCManFM to see it.
+
+THEME=Papirus-Folders
+OUT=$HOME/.local/share/icons/$THEME
+SAVE=$HOME/.config/dotfiles/folder-color
+GTK3=$HOME/.config/gtk-3.0/settings.ini
+
+die() { echo "folder-color: $*" >&2; exit 1; }
+
+# where Papirus is installed
+PAP=""
+for d in "$HOME/.local/share/icons/Papirus" /usr/share/icons/Papirus /usr/local/share/icons/Papirus; do
+	[[ -f $d/index.theme ]] && { PAP=$d; break; }
+done
+
+color="" dark=""
+[[ -r $SAVE ]] && read -r color dark <"$SAVE"
+apply_only=0
+while (($#)); do
+	case $1 in
+	--dark) dark=dark ;;
+	--light) dark=light ;;
+	--apply) apply_only=1 ;;
+	-h | --help) sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	-*) die "unknown option $1" ;;
+	*) color=$1 ;;
+	esac
+	shift
+done
+color=${color:-green}
+dark=${dark:-keep} # keep: the GTK theme stays as it is
+
+# ---------------------------------------------------------------- GTK settings
+# gsettings for Wayland apps, settings.ini for X11 (i3) and as a fallback
+ini_set() { # key value
+	mkdir -p "$(dirname "$GTK3")"
+	[[ -L $GTK3 ]] && return 0 # a linked file belongs to someone else
+	[[ -f $GTK3 ]] || printf '[Settings]\n' >"$GTK3"
+	if grep -q "^$1=" "$GTK3"; then
+		sed -i "s|^$1=.*|$1=$2|" "$GTK3"
+	else
+		sed -i "/^\[Settings\]/a $1=$2" "$GTK3"
+	fi
+}
+apply() {
+	local gtk=Adwaita scheme=default pref=0
+	[[ $dark == dark ]] && gtk=Adwaita-dark scheme=prefer-dark pref=1
+	command -v gsettings >/dev/null &&
+		gsettings set org.gnome.desktop.interface icon-theme "$THEME" 2>/dev/null
+	ini_set gtk-icon-theme-name "$THEME"
+	[[ $dark == keep ]] && return 0
+	if command -v gsettings >/dev/null; then
+		gsettings set org.gnome.desktop.interface gtk-theme "$gtk" 2>/dev/null
+		gsettings set org.gnome.desktop.interface color-scheme "$scheme" 2>/dev/null
+	fi
+	ini_set gtk-theme-name "$gtk"
+	ini_set gtk-application-prefer-dark-theme "$pref"
+}
+
+if ((apply_only)); then
+	[[ -f $OUT/index.theme ]] || exit 0 # never made: leave the defaults alone
+	apply
+	exit 0
+fi
+
+[[ -n $PAP ]] || die "install the Papirus icon theme first (Arch / Ubuntu package: papirus-icon-theme)"
+
+# ---------------------------------------------------------------- the theme
+if [[ $color =~ ^#?[0-9A-Fa-f]{6}$ ]]; then
+	hex=${color#\#}
+	mode=recolor
+else
+	[[ -e $PAP/48x48/places/folder-$color.svg ]] || die "Papirus has no '$color' folders (see folder-color --help)"
+	mode=link
+fi
+
+# shade RRGGBB by a factor (0.72 = darker)
+shade() {
+	local h=$1 f=$2
+	printf '%02x%02x%02x' \
+		"$(awk -v c=$((16#${h:0:2})) -v f="$f" 'BEGIN{printf "%d", c*f}')" \
+		"$(awk -v c=$((16#${h:2:2})) -v f="$f" 'BEGIN{printf "%d", c*f}')" \
+		"$(awk -v c=$((16#${h:4:2})) -v f="$f" 'BEGIN{printf "%d", c*f}')"
+}
+
+rm -rf "$OUT"
+mkdir -p "$OUT"
+
+# folder icon sections of Papirus (16x16/places, 16x16@2x/places, ...), not symbolic
+dirs=$(awk -F'[][]' '/^\[[0-9]+x[0-9]+(@2x)?\/places\]$/ {print $2}' "$PAP/index.theme")
+[[ -n $dirs ]] || die "unexpected $PAP/index.theme"
+
+inherit=Papirus,hicolor
+[[ $dark == dark ]] && inherit=Papirus-Dark,Papirus,hicolor
+{
+	echo "[Icon Theme]"
+	echo "Name=$THEME"
+	echo "Comment=Papirus with $color folders (folder-color)"
+	echo "Inherits=$inherit"
+	echo "Example=folder"
+	echo "Directories=$(echo $dirs | tr ' ' ',')"
+	echo
+	for d in $dirs; do
+		awk -v s="[$d]" '$0==s {p=1} p && /^$/ {exit} p' "$PAP/index.theme"
+		echo
+	done
+} >"$OUT/index.theme"
+
+n=0
+src_color=$color
+[[ $mode == recolor ]] && src_color=green
+for d in $dirs; do
+	src=$(readlink -f "$PAP/$d") # @2x folders are links in the package
+	[[ -d $src ]] || continue
+	mkdir -p "$OUT/$d"
+	for f in "$src"/folder-"$src_color".svg "$src"/folder-"$src_color"-*.svg \
+		"$src"/user-"$src_color"-*.svg; do
+		[[ -f $f ]] || continue
+		b=$(basename "$f")
+		name=${b/-"$src_color"/} # folder-green-music.svg -> folder-music.svg
+		if [[ $mode == link ]]; then
+			ln -s "$(readlink -f "$f")" "$OUT/$d/$name"
+		else
+			# Papirus green: #87b158 front, #60924b back, #2f3e1f symbol
+			sed -e "s/#87b158/#$hex/gI" -e "s/#60924b/#$(shade "$hex" 0.72)/gI" \
+				-e "s/#2f3e1f/#$(shade "$hex" 0.35)/gI" "$f" >"$OUT/$d/$name"
+		fi
+		n=$((n + 1))
+	done
+done
+((n)) || die "no folder icons found in $PAP"
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -f -t "$OUT" 2>/dev/null
+
+mkdir -p "$(dirname "$SAVE")"
+echo "${color} ${dark}" >"$SAVE"
+apply
+msg="folders: $color ($n icons)"
+[[ $dark != keep ]] && msg+=", GTK theme: $dark"
+echo "$msg. Restart PCManFM to see it: pkill pcmanfm"

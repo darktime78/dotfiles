@@ -236,6 +236,8 @@ exec --no-startup-id $bin/battery-notify 15 5
 exec --no-startup-id picom -b
 exec --no-startup-id gsettings set org.gnome.desktop.interface font-name 'Hack 10'
 exec --no-startup-id gsettings set org.gnome.desktop.interface monospace-font-name 'Hack 10'
+# folder colour and dark / light GTK theme you chose with folder-color
+exec --no-startup-id $bin/folder-color --apply
 
 
 ##

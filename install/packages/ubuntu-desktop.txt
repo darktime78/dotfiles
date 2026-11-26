@@ -12,3 +12,4 @@ imagemagick
 fonts-hack
 fonts-noto-color-emoji
 pcmanfm
+papirus-icon-theme

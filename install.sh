@@ -406,6 +406,12 @@ linux_extras() {
 		run "$REPO/linux/scripts/.local/bin/make-lockscreen" >/dev/null 2>&1 || true
 	fi
 	if have fc-cache && ((!DRY)); then fc-cache >/dev/null 2>&1; fi
+
+	# green folder icons (Papirus) for PCManFM and the GTK file dialogs; change: folder-color
+	if [[ ! -e $HOME/.local/share/icons/Papirus-Folders ]] && [[ -d /usr/share/icons/Papirus ]]; then
+		info "folder icons: green (folder-color teal / '#5fa86f' / --dark to change)"
+		run "$REPO/linux/scripts/.local/bin/folder-color" >/dev/null || warn "folder-color failed"
+	fi
 }
 
 linux_docker() {

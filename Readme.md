@@ -90,6 +90,7 @@ launcher, `$mod+c` Docker apps, `$mod+1…0` workspaces, `$mod+Shift+e` power me
 | your git name and email | `~/.gitconfig.local` (install.sh asks) |
 | LocalAI buttons on the bar | `~/.config/dotfiles/services.conf` |
 | Docker apps | `~/.config/docker/dockerfunc`, then `docker-launchers` for rofi |
+| folder icons in PCManFM, file dialogs, rofi | `folder-color green` (default), `teal`, `'#5fa86f'`; `--dark` for a dark PCManFM |
 
 Sway and i3 differ only where X11 needs other tools: polybar for waybar, dunst for mako,
 `wm-idle` (xss-lock, xset, xautolock) for swayidle, picom for transparency. The scripts in

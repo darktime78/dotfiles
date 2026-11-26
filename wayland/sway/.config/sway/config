@@ -270,6 +270,8 @@ exec [ -x $bin/sway_independent_layouts ] && $bin/sway_independent_layouts
 # Hack as the GTK UI font too (file dialogs, pavucontrol, ...)
 exec gsettings set org.gnome.desktop.interface font-name 'Hack 10'
 exec gsettings set org.gnome.desktop.interface monospace-font-name 'Hack 10'
+# folder colour and dark / light GTK theme you chose with folder-color
+exec $bin/folder-color --apply
 
 
 ##
