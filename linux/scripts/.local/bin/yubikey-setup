@@ -1,0 +1,401 @@
+#!/bin/bash
+#
+# yubikey-setup: a YubiKey (FIDO2, e.g. YubiKey 5C NFC) for disk unlock and login on
+# Arch Linux. Your passwords keep working: the key is added, nothing is taken away.
+#
+#   yubikey-setup status          what is set up now
+#   yubikey-setup pin             set or change the FIDO2 PIN of the key (do this first)
+#   yubikey-setup disk            unlock the encrypted disk (LUKS2) with key + PIN at boot;
+#                                 without the key the passphrase still works
+#   yubikey-setup login [MODE]    tty login and the lock screen (swaylock, i3lock):
+#                                   2fa    password AND touch (default)
+#                                   touch  touch instead of the password
+#                                   off    back to password only
+#   yubikey-setup sudo [MODE]     sudo: touch (default: touch instead of the password),
+#                                 2fa, off
+#   yubikey-setup add-key         register a second (backup) YubiKey for disk and login
+#   yubikey-setup undo disk       remove the key from the disk (passphrase only again)
+#
+# Everything it changes is copied first to /root/yubikey-backup/DATE/. PAM changes for
+# sudo are tested at once and put back if the test fails. Guide: docs/yubikey.md
+
+set -uo pipefail
+
+MAP=/etc/u2f_mappings              # keys per user (root-owned: users can't add keys)
+CONF=/etc/yubikey-setup.conf        # remembers the FIDO2 "origin" of this machine
+BACKUP=/root/yubikey-backup/$(date +%Y%m%d-%H%M%S)
+MARK="# yubikey-setup"
+
+c_y=$'\e[1;33m' c_r=$'\e[1;31m' c_g=$'\e[1;32m' c_b=$'\e[1;34m' c_0=$'\e[0m'
+say() { printf '%s==>%s %s\n' "$c_b" "$c_0" "$*"; }
+ok() { printf '%s ok%s  %s\n' "$c_g" "$c_0" "$*"; }
+warn() { printf '%swarning:%s %s\n' "$c_y" "$c_0" "$*" >&2; }
+die() { printf '%serror:%s %s\n' "$c_r" "$c_0" "$*" >&2; exit 1; }
+ask() { # question -> 0 for yes
+	local a
+	read -r -p "$1 [y/N] " a </dev/tty
+	[[ $a == [yY]* ]]
+}
+usage() { sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+# ---------------------------------------------------------------- root, user, packages
+# The work runs as root (re-run through sudo); USER_NAME is the person behind it.
+command -v pacman >/dev/null || die "this script is for Arch Linux (macOS: yubikey-setup-mac)"
+if [[ $EUID -ne 0 && ${1:-} != status && ${1:-} != -h && ${1:-} != --help && -n ${1:-} ]]; then
+	exec sudo "$(readlink -f "$0")" "$@"
+fi
+USER_NAME=${SUDO_USER:-$(id -un)}
+[[ $USER_NAME == root ]] && die "run it as your normal user (it uses sudo itself)"
+
+need() {
+	local missing=() p
+	for p in libfido2 pam-u2f yubikey-manager; do
+		pacman -Q "$p" >/dev/null 2>&1 || missing+=("$p")
+	done
+	if ((${#missing[@]})); then
+		say "installing ${missing[*]}"
+		pacman -S --needed --noconfirm "${missing[@]}" || die "pacman failed"
+	fi
+}
+
+key_present() {
+	fido2-token -L 2>/dev/null | grep -q . || die "no FIDO2 key found: plug in the YubiKey"
+}
+pin_set() {
+	ykman fido info 2>/dev/null | grep -qiE 'PIN.*not set' &&
+		die "the key has no FIDO2 PIN yet: yubikey-setup pin"
+	return 0
+}
+
+backup() { # file...
+	local f
+	for f in "$@"; do
+		[[ -e $f ]] || continue
+		mkdir -p "$BACKUP$(dirname "$f")"
+		cp -a "$f" "$BACKUP$f"
+	done
+}
+
+origin() {
+	local o=""
+	[[ -r $CONF ]] && o=$(sed -n 's/^ORIGIN=//p' "$CONF")
+	if [[ -z $o ]]; then
+		o="pam://$(cat /etc/hostname 2>/dev/null || hostname)"
+		echo "ORIGIN=$o" >"$CONF"
+	fi
+	echo "$o"
+}
+
+# ---------------------------------------------------------------- status
+status() {
+	echo "Keys:"
+	fido2-token -L 2>/dev/null | sed 's/^/  /' || echo "  (fido2-token missing: pacman -S libfido2)"
+	local dev
+	dev=$(luks_dev 2>/dev/null)
+	if [[ -n $dev ]]; then
+		echo "Disk $dev:"
+		sudo systemd-cryptenroll "$dev" 2>/dev/null | sed 's/^/  /'
+	else
+		echo "Disk: no LUKS root found"
+	fi
+	echo "Login (key lines in PAM):"
+	grep -H 'pam_u2f.so' /etc/pam.d/* 2>/dev/null | sed 's/^/  /' || echo "  none"
+	echo "Registered for login: $(sudo cut -d: -f1 "$MAP" 2>/dev/null | tr '\n' ' ')"
+}
+
+# ---------------------------------------------------------------- disk (LUKS2 + FIDO2)
+# the LUKS partition under / (also LVM on LUKS)
+luks_dev() {
+	local src
+	src=$(findmnt -no SOURCE /) || return 1
+	src=${src%%\[*}
+	lsblk -sprno NAME,TYPE "$src" | awk 'c {print $1; exit} $2 == "crypt" {c = 1}'
+}
+
+hooks_get() { sed -n -E 's/^HOOKS=\((.*)\)/\1/p' /etc/mkinitcpio.conf; }
+
+# busybox initramfs (udev + encrypt) -> systemd (systemd + sd-encrypt): only the systemd
+# one can use a FIDO2 key at boot
+initramfs_systemd() {
+	local hooks new="" h vconsole=0
+	hooks=$(hooks_get)
+	if [[ " $hooks " == *" systemd "* ]]; then
+		[[ " $hooks " == *" sd-encrypt "* ]] || die "HOOKS has systemd but no sd-encrypt: add it before filesystems in /etc/mkinitcpio.conf"
+		return 0
+	fi
+	[[ " $hooks " == *" encrypt "* ]] || die "no encrypt hook in /etc/mkinitcpio.conf: is / really on LUKS?"
+	for h in $hooks; do
+		case $h in
+		udev) new+="systemd " ;;
+		encrypt) new+="sd-encrypt " ;;
+		keymap | consolefont) vconsole=1 ;;
+		usr | resume) ;; # systemd does these itself
+		keyboard)
+			new+="keyboard "
+			;;
+		*) new+="$h " ;;
+		esac
+	done
+	# keyboard layout / font for the passphrase prompt: sd-vconsole after keyboard
+	if ((vconsole)) || [[ " $new " != *" sd-vconsole "* ]]; then
+		new=$(sed -E 's/(^| )keyboard( |$)/\1keyboard sd-vconsole\2/' <<<"$new")
+	fi
+	new=${new% }
+	echo
+	echo "The initramfs has to change from busybox to systemd style:"
+	echo "  now: HOOKS=($hooks)"
+	echo "  new: HOOKS=($new)"
+	echo "and the kernel line from cryptdevice=... to rd.luks.name=... (done below)."
+	ask "Change /etc/mkinitcpio.conf?" || die "stopped, nothing changed"
+	backup /etc/mkinitcpio.conf
+	sed -i -E "s/^HOOKS=\(.*\)/HOOKS=($new)/" /etc/mkinitcpio.conf
+	ok "mkinitcpio.conf: systemd hooks"
+}
+
+# edit a kernel command line string: cryptdevice= -> rd.luks.name=, add rd.luks.options
+cmdline_fix() { # line uuid
+	local l=$1 u=$2 val name opts extra=""
+	# cryptdevice=DEVICE:NAME[:OPTIONS] (busybox) -> rd.luks.name=UUID=NAME (systemd)
+	if [[ $l =~ cryptdevice=([^[:space:]]+) ]]; then
+		val=${BASH_REMATCH[1]}
+		IFS=: read -r _ name opts <<<"$val"
+		[[ -n $name ]] || name=cryptroot
+		l=${l/"cryptdevice=$val"/"rd.luks.name=$u=$name"}
+		[[ $opts == *allow-discards* ]] && extra=",discard"
+	fi
+	if [[ $l =~ rd\.luks\.options=$u=([^[:space:]]+) ]]; then
+		val=${BASH_REMATCH[1]}
+		[[ $val == *fido2-device* ]] || l=${l/"rd.luks.options=$u=$val"/"rd.luks.options=$u=$val,fido2-device=auto"}
+	else
+		l="$l rd.luks.options=$u=fido2-device=auto$extra"
+	fi
+	echo "$l"
+}
+
+cmdline_all() { # uuid: every place the kernel line lives
+	local u=$1 done=0 f esp line new var
+	declare -A seen=()
+	# systemd-boot entries
+	esp=$(bootctl --print-esp-path 2>/dev/null)
+	for f in "$esp"/loader/entries/*.conf /boot/loader/entries/*.conf /efi/loader/entries/*.conf; do
+		[[ -f $f ]] || continue
+		f=$(readlink -f "$f")
+		[[ -z ${seen[$f]:-} ]] || continue
+		seen[$f]=1
+		grep -q '^options' "$f" && grep -qE "$u|cryptdevice|rd\.luks" "$f" || continue
+		backup "$f"
+		line=$(sed -n 's/^options[[:space:]]*//p' "$f" | head -1)
+		new=$(cmdline_fix "$line" "$u")
+		sed -i "s#^options.*#options $new#" "$f"
+		ok "$f"
+		done=1
+	done
+	# unified kernel images (mkinitcpio uki / kernel-install)
+	if [[ -f /etc/kernel/cmdline ]]; then
+		backup /etc/kernel/cmdline
+		new=$(cmdline_fix "$(cat /etc/kernel/cmdline)" "$u")
+		echo "$new" >/etc/kernel/cmdline
+		ok /etc/kernel/cmdline
+		done=1
+	fi
+	# GRUB: the variable that has the LUKS option (the bootstrap uses GRUB_CMDLINE_LINUX)
+	if [[ -f /etc/default/grub && -d /boot/grub ]]; then
+		for var in GRUB_CMDLINE_LINUX GRUB_CMDLINE_LINUX_DEFAULT; do
+			line=$(sed -n -E "s/^$var=\"(.*)\"/\1/p" /etc/default/grub)
+			[[ $line == *cryptdevice* || $line == *rd.luks* ]] || continue
+			backup /etc/default/grub
+			new=$(cmdline_fix "$line" "$u")
+			sed -i -E "s#^$var=.*#$var=\"${new# }\"#" /etc/default/grub
+			done=1
+		done
+		if ((done)); then
+			grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 && ok "GRUB" || warn "grub-mkconfig failed"
+		fi
+	fi
+	((done)) || die "no boot entry with the LUKS option found: add  rd.luks.options=$u=fido2-device=auto  to the kernel line by hand"
+}
+
+disk() {
+	need
+	key_present
+	pin_set
+	local dev uuid
+	dev=$(luks_dev) || true
+	[[ -n $dev ]] || die "no LUKS device under / found"
+	cryptsetup luksDump "$dev" | grep -q '^Version:[[:space:]]*2' ||
+		die "$dev is LUKS1: FIDO2 needs LUKS2 (cryptsetup convert --type luks2 $dev, from a live USB)"
+	uuid=$(cryptsetup luksUUID "$dev")
+	say "disk: $dev (UUID $uuid)"
+
+	mkdir -p "$BACKUP"
+	cryptsetup luksHeaderBackup "$dev" --header-backup-file "$BACKUP/luks-header-$uuid.img" &&
+		ok "LUKS header saved: $BACKUP/luks-header-$uuid.img (copy it to a USB stick)"
+
+	if systemd-cryptenroll "$dev" 2>/dev/null | grep -q fido2 && [[ ${ADD:-0} == 0 ]]; then
+		ok "a FIDO2 key is already enrolled (a second one: yubikey-setup add-key)"
+	else
+		say "enrolling the key: enter your current disk passphrase, then the key's PIN, then touch it"
+		systemd-cryptenroll "$dev" --fido2-device=auto \
+			--fido2-with-client-pin=yes --fido2-with-user-presence=yes || die "enrolling failed"
+		ok "key enrolled; the passphrase slot stays"
+	fi
+	[[ ${ADD:-0} == 1 ]] && return 0
+
+	initramfs_systemd
+	# crypttab.initramfs, if used, instead of the kernel line
+	if [[ -f /etc/crypttab.initramfs ]] && grep -q "$uuid" /etc/crypttab.initramfs; then
+		backup /etc/crypttab.initramfs
+		if ! grep "$uuid" /etc/crypttab.initramfs | grep -q fido2-device; then
+			awk -v u="$uuid" '$0 ~ u && $0 !~ /^#/ {
+				if (NF >= 4) $4 = $4 ",fido2-device=auto"; else { if (NF < 3) $3 = "none"; $4 = "fido2-device=auto" } }
+				{ print }' /etc/crypttab.initramfs >/etc/crypttab.initramfs.new &&
+				mv /etc/crypttab.initramfs.new /etc/crypttab.initramfs
+		fi
+		ok "/etc/crypttab.initramfs: fido2-device=auto"
+	else
+		cmdline_all "$uuid"
+	fi
+	say "rebuilding the initramfs"
+	mkinitcpio -P >/dev/null || die "mkinitcpio failed: put back $BACKUP/etc/mkinitcpio.conf"
+	ok "initramfs"
+	echo
+	echo "Reboot to try it: with the key in, enter its PIN and touch it."
+	echo "Without the key (or after 30 s) the passphrase prompt comes, as before."
+	echo "Backups: $BACKUP"
+}
+
+undo_disk() {
+	local dev
+	dev=$(luks_dev) || die "no LUKS device under / found"
+	ask "Remove every FIDO2 key from $dev (the passphrase stays)?" || exit 0
+	systemd-cryptenroll "$dev" --wipe-slot=fido2 && ok "FIDO2 slots removed"
+	echo "The boot entries keep rd.luks.options=...fido2-device=auto; that is harmless"
+	echo "(the passphrase is asked). The old files are in /root/yubikey-backup/."
+}
+
+# ---------------------------------------------------------------- login / sudo (pam_u2f)
+register() { # [add]: register the key for USER_NAME in $MAP
+	need
+	key_present
+	local o line cred
+	o=$(origin)
+	touch "$MAP"
+	chmod 644 "$MAP"
+	if grep -q "^$USER_NAME:" "$MAP" && [[ ${1:-} != add ]]; then
+		ok "$USER_NAME already has a key for login (another: yubikey-setup add-key)"
+		return 0
+	fi
+	say "touch the YubiKey when it blinks (it may ask for its PIN)"
+	if [[ ${1:-} == add ]] && grep -q "^$USER_NAME:" "$MAP"; then
+		cred=$(pamu2fcfg -n -u "$USER_NAME" -o "$o" -i "$o") || die "pamu2fcfg failed"
+		backup "$MAP"
+		sed -i "s#^$USER_NAME:.*#&$cred#" "$MAP"
+	else
+		line=$(pamu2fcfg -u "$USER_NAME" -o "$o" -i "$o") || die "pamu2fcfg failed"
+		backup "$MAP"
+		echo "$line" >>"$MAP"
+	fi
+	ok "key registered for $USER_NAME ($MAP)"
+}
+
+pam_line() { # sufficient|required
+	echo "auth $1 pam_u2f.so authfile=$MAP cue nouserok origin=$(origin) appid=$(origin)"
+}
+
+pam_strip() { # file: remove our lines
+	sed -i -e "/^$MARK/d" -e "\#pam_u2f\.so authfile=$MAP #d" "$1"
+}
+
+# pam_set FILE MODE INCLUDE-REGEX: touch -> sufficient before the include; 2fa -> required after
+pam_set() {
+	local f=$1 mode=$2 inc=$3
+	[[ -f $f ]] || return 0
+	backup "$f"
+	pam_strip "$f"
+	[[ $mode == off ]] && return 0
+	local n
+	n=$(grep -n -E "^auth[[:space:]]+(include|substack)[[:space:]]+$inc" "$f" | head -1 | cut -d: -f1)
+	[[ -n $n ]] || n=$(grep -n -E '^auth' "$f" | head -1 | cut -d: -f1)
+	[[ -n $n ]] || die "no auth line in $f"
+	if [[ $mode == touch ]]; then
+		sed -i "${n}i $MARK ($mode)\n$(pam_line sufficient)" "$f"
+	else
+		sed -i "${n}a $MARK ($mode)\n$(pam_line required)" "$f"
+	fi
+}
+
+sudo_mode() {
+	local mode=${1:-touch}
+	[[ $mode == touch || $mode == 2fa || $mode == off ]] || usage 2
+	[[ $mode == off ]] || register
+	pam_set /etc/pam.d/sudo "$mode" 'system-auth'
+	ok "/etc/pam.d/sudo: $mode"
+	[[ $mode == off ]] && return 0
+	# test it now, while this root process can still put it back
+	say "test: sudo asks for the key now${mode:+ ($mode)}"
+	if runuser -u "$USER_NAME" -- sudo -k && runuser -u "$USER_NAME" -- sudo -v; then
+		ok "sudo works with the key"
+	else
+		warn "the test failed: putting /etc/pam.d/sudo back"
+		cp -a "$BACKUP/etc/pam.d/sudo" /etc/pam.d/sudo
+		exit 1
+	fi
+}
+
+login_mode() {
+	local mode=${1:-2fa} f
+	[[ $mode == touch || $mode == 2fa || $mode == off ]] || usage 2
+	[[ $mode == off ]] || register
+	# tty login (and everything that includes "login": swaylock)
+	pam_set /etc/pam.d/system-local-login "$mode" 'system-login'
+	ok "/etc/pam.d/system-local-login: $mode"
+	# lock screens that don't go through "login"
+	for f in /etc/pam.d/swaylock /etc/pam.d/i3lock; do
+		[[ -f $f ]] || continue
+		if grep -qE '^auth[[:space:]]+include[[:space:]]+(login|system-local-login)' "$f"; then
+			ok "$f: through login"
+		else
+			pam_set "$f" "$mode" '(system-auth|system-login)'
+			ok "$f: $mode"
+		fi
+	done
+	[[ $mode == off ]] && return 0
+	echo
+	echo "${c_y}Test it before you log out:${c_0} press Ctrl+Alt+F3, log in there as $USER_NAME"
+	echo "(password, then touch the key for 2fa). Works? Ctrl+Alt+F1 back."
+	echo "Doesn't work? Here:  yubikey-setup login off"
+	echo "The lock screen: lock it (Ctrl+Alt+Shift+L), type the password, touch the key."
+}
+
+# ---------------------------------------------------------------- main
+cmd=${1:-}
+shift || true
+case $cmd in
+status) status ;;
+pin)
+	need
+	key_present
+	say "FIDO2 PIN (4-63 characters; 8 wrong tries lock FIDO2 until a reset)"
+	ykman fido access change-pin
+	;;
+disk) disk ;;
+login) login_mode "${1:-2fa}" ;;
+sudo) sudo_mode "${1:-touch}" ;;
+add-key)
+	echo "Plug in ONLY the new key (take the first one out)."
+	ask "New key plugged in?" || exit 0
+	ADD=1 disk
+	register add
+	ok "the second key works for disk and login too"
+	;;
+undo)
+	case ${1:-} in
+	disk) undo_disk ;;
+	login) login_mode off ;;
+	sudo) sudo_mode off ;;
+	*) usage 2 ;;
+	esac
+	;;
+-h | --help | "") usage ;;
+*) usage 2 ;;
+esac

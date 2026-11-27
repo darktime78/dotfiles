@@ -25,3 +25,5 @@ brew "htop"
 brew "wget"
 brew "clang-format"
 brew "go"
+# YubiKey (yubikey-setup-mac, docs/yubikey.md)
+brew "ykman"

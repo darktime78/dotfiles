@@ -67,7 +67,8 @@ macos/     AeroSpace, SketchyBar
 docker/    images/ (one folder per app) and update.sh
 install/   arch-bootstrap.sh, packages/ (lists per system and profile)
 tools/     make_bars.py, check_parity.py, sync_upstream.py
-docs/      keys.md, wine-games.md
+docs/      keys.md, wine-games.md, yubikey.md
+windows/   yubikey-setup.ps1 (run by hand on Windows)
 ```
 
 Each folder in `common/ linux/ wayland/ i3/ macos/` mirrors `$HOME`:
@@ -122,6 +123,13 @@ wine-game run homm3                            # or "homm3 (Wine)" in the launch
 
 Each game lives in `~/Games/NAME` with its own Wine prefix. Discs, patches, mods, window
 mode, Russian editions: [docs/wine-games.md](docs/wine-games.md).
+
+## YubiKey
+
+Disk unlock and login with a YubiKey: `yubikey-setup` (Arch: LUKS2 at boot, login, lock
+screen, sudo), `yubikey-setup-mac` (macOS login, FileVault on Apple silicon),
+`windows/yubikey-setup.ps1` (Windows 11: what Windows allows). Read
+[docs/yubikey.md](docs/yubikey.md) first: two keys, and keep the passwords.
 
 ## Only the Neovim config
 

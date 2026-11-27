@@ -90,7 +90,7 @@ wayland | i3)
 	PKGS+=" common/alacritty common/ghostty linux/rofi linux/fontconfig linux/ncmpcpp"
 	PKGS+=" linux/scripts linux/systemd linux/docker"
 	;;
-macos) PKGS+=" common/alacritty common/ghostty macos/aerospace macos/sketchybar" ;;
+macos) PKGS+=" common/alacritty common/ghostty macos/aerospace macos/sketchybar macos/scripts" ;;
 terminal) [[ $OS != macos ]] && PKGS+=" linux/scripts linux/systemd linux/docker" ;;
 esac
 case $PROFILE in

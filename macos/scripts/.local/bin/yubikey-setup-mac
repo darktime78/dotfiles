@@ -1,0 +1,123 @@
+#!/bin/bash
+#
+# yubikey-setup-mac: a YubiKey (PIV smart card, e.g. YubiKey 5C NFC) for macOS login
+# (Ventura and newer), the lock screen, sudo-less admin prompts and, on Apple silicon,
+# the FileVault screen at boot. Your password keeps working.
+#
+#   yubikey-setup-mac status              key, PIV slots, pairing
+#   yubikey-setup-mac setup               PIV PIN / PUK / management key, keys and
+#                                         certificates in slots 9a and 9d, pair with you
+#   yubikey-setup-mac pair                only pair (key already set up, e.g. second Mac)
+#   yubikey-setup-mac lock-on-remove on   lock the screen when the key is pulled out (off)
+#   yubikey-setup-mac unpair              back to password only
+#
+# Needs: brew install ykman. Guide: docs/yubikey.md in the dotfiles.
+
+set -uo pipefail
+
+die() { echo "error: $*" >&2; exit 1; }
+say() { printf '==> %s\n' "$*"; }
+ask() { local a; read -r -p "$1 [y/N] " a; [[ $a == [yY]* ]]; }
+usage() { sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+[[ $(uname -s) == Darwin ]] || die "this is for macOS (Arch Linux: yubikey-setup)"
+ME=$(id -un)
+SC=/Library/Preferences/com.apple.security.smartcard
+
+need() {
+	command -v ykman >/dev/null || die "install the YubiKey Manager first: brew install ykman"
+	ykman info >/dev/null 2>&1 || die "no YubiKey found: plug it in"
+}
+
+# hash of the unpaired "PIV Authentication" identity (slot 9a)
+unpaired_hash() {
+	sc_auth identities 2>/dev/null | awk '/^Unpaired identities/ {u = 1; next} /^(SmartCard|Paired)/ {u = 0}
+		u && /PIV Authentication/ {print $1; exit}'
+}
+
+status() {
+	need
+	ykman info | sed 's/^/  /'
+	echo "PIV:"
+	ykman piv info | sed 's/^/  /'
+	echo "Pairing:"
+	sc_auth identities | sed 's/^/  /'
+	echo "Paired with $ME: $(sc_auth list -u "$ME" 2>/dev/null | tr '\n' ' ')"
+	echo "Lock on removal: $(defaults read "$SC" tokenRemovalAction 2>/dev/null || echo off)"
+	echo "FileVault: $(fdesetup status 2>/dev/null)"
+	[[ $(uname -m) == arm64 ]] && echo "  (Apple silicon: the key can unlock FileVault at boot)" ||
+		echo "  (Intel: FileVault at boot takes the password; the key works at the login window)"
+}
+
+pair() {
+	need
+	local h
+	h=$(unpaired_hash)
+	if [[ -z $h ]]; then
+		sc_auth list -u "$ME" 2>/dev/null | grep -q . && { echo "already paired with $ME"; return 0; }
+		die "no unpaired PIV identity: run  yubikey-setup-mac setup  first"
+	fi
+	say "pairing the key with $ME (your Mac password, then the key's PIV PIN)"
+	sudo sc_auth pair -u "$ME" -h "$h" || die "pairing failed"
+	sc_auth list -u "$ME"
+	echo
+	echo "Done. Test: lock the screen (Ctrl+Cmd+Q) and unlock with the key's PIN."
+	echo "Your password still works. On Apple silicon, restart once and enter the PIN"
+	echo "on the FileVault screen; if it says the configuration is invalid, log in with the"
+	echo "password once, then it works from the next restart."
+}
+
+setup() {
+	need
+	ykman piv info | sed 's/^/  /'
+	if ykman piv info | grep -qE 'Slot 9[aAdD]'; then
+		echo
+		echo "Slots 9a / 9d already have keys or certificates (shown above)."
+		echo "Setting up replaces them: anything else using them (VPN, signing) stops working."
+		ask "Replace the keys in slots 9a and 9d?" || exit 0
+	fi
+	echo
+	echo "1/4 PIV PIN and PUK. New keys use PIN 123456 and PUK 12345678: change both."
+	echo "    The PIN is what you type at login (6-8 characters). The PUK unblocks a"
+	echo "    blocked PIN. Keep both safe; 3 wrong PUKs need a PIV reset (keys are lost)."
+	if ask "Change the PIN now?"; then ykman piv access change-pin || die "PIN not changed"; fi
+	if ask "Change the PUK now?"; then ykman piv access change-puk || die "PUK not changed"; fi
+	echo "2/4 Management key: a new random one, stored on the key behind the PIN"
+	if ask "Set a new management key (recommended, needed only once)?"; then
+		ykman piv access change-management-key --generate --protect ||
+			echo "  (left as it is)"
+	fi
+	echo "3/4 Keys and certificates (touch the key if it blinks)"
+	local s tmp
+	tmp=$(mktemp -d)
+	for s in 9a 9d; do
+		ykman piv keys generate --algorithm ECCP256 "$s" "$tmp/$s.pub" || die "key $s failed"
+		ykman piv certificates generate --subject "CN=$ME YubiKey" --valid-days 3650 "$s" "$tmp/$s.pub" ||
+			die "certificate $s failed"
+		echo "  slot $s: ok"
+	done
+	rm -rf "$tmp"
+	echo "4/4 Pairing (macOS may also show its own pairing window: either works)"
+	sleep 2 # macOS notices the new certificates
+	pair
+}
+
+lock_on_remove() {
+	case ${1:-} in
+	on) sudo defaults write "$SC" tokenRemovalAction -int 1 && echo "the screen locks when the key is removed" ;;
+	off) sudo defaults delete "$SC" tokenRemovalAction 2>/dev/null; echo "no lock on removal" ;;
+	*) usage 2 ;;
+	esac
+}
+
+case ${1:-} in
+status) status ;;
+setup) setup ;;
+pair) pair ;;
+lock-on-remove) lock_on_remove "${2:-}" ;;
+unpair)
+	sudo sc_auth unpair -u "$ME" && echo "unpaired: password only (the keys stay on the YubiKey)"
+	;;
+-h | --help | "") usage ;;
+*) usage 2 ;;
+esac
