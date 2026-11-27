@@ -41,13 +41,20 @@ a wallpaper and the lock screen picture.
 
 ### New Arch install, from the ISO
 
-Partition, mount root on `/mnt` and the EFI partition on `/mnt/boot`, then:
+Encrypted disk (LUKS2, optional YubiKey to unlock it), then the base system, then
+everything else:
 
 ```sh
+curl -LO https://raw.githubusercontent.com/darktime78/dotfiles/master/install/arch-disk.sh
+bash arch-disk.sh        # wipes one disk: EFI + LUKS2 (btrfs or ext4), mounted on /mnt
 pacstrap -K /mnt base linux linux-firmware
 curl -LO https://raw.githubusercontent.com/darktime78/dotfiles/master/install/arch-bootstrap.sh
 bash arch-bootstrap.sh
 ```
+
+Your own partitioning works too: mount root on `/mnt` and the EFI partition on
+`/mnt/boot`, then `pacstrap` and the bootstrap. Details, YubiKey:
+[yubikey/README.md](yubikey/README.md#a-new-encrypted-arch-install-with-the-yubikey).
 
 It asks everything first (hostname, user, passwords, timezone, desktop: wayland / i3 /
 none), then installs without stopping: fstab, pacman, locale, microcode and GPU drivers
@@ -65,7 +72,7 @@ wayland/   sway, waybar, mako
 i3/        i3, polybar, dunst, picom, .xinitrc, system/ (touchpad, copied to /etc)
 macos/     AeroSpace, SketchyBar
 docker/    images/ (one folder per app) and update.sh
-install/   arch-bootstrap.sh, packages/ (lists per system and profile)
+install/   arch-disk.sh, arch-bootstrap.sh, packages/ (lists per system and profile)
 tools/     make_bars.py, check_parity.py, sync_upstream.py, subrepo.sh
 docs/      keys.md, wine-games.md
 yubikey/   YubiKey scripts for Arch, macOS, Windows (also its own repository)

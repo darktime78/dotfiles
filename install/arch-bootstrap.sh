@@ -90,6 +90,11 @@ detect_disk_layout() {
 		fi
 	done < <(lsblk -snro PATH,TYPE "$ROOT_SRC")
 	[[ -n $LUKS_UUID ]] || LUKS_NAME=""
+	# a YubiKey / FIDO2 key enrolled (arch-disk.sh --yubikey, systemd-cryptenroll)?
+	LUKS_FIDO2=0
+	if [[ -n $LUKS_UUID ]] && cryptsetup luksDump "/dev/disk/by-uuid/$LUKS_UUID" 2>/dev/null | grep -q systemd-fido2; then
+		LUKS_FIDO2=1
+	fi
 
 	# boot: UEFI with the ESP on /boot (systemd-boot) or /efi (GRUB), else BIOS GRUB
 	if [[ -d /sys/firmware/efi/efivars ]]; then
@@ -199,7 +204,7 @@ stage_live() {
 	umask 077
 	{
 		for v in HOST USERNAME TIMEZONE KEYMAP BOOT ESP BIOS_DISK ROOT_UUID ROOT_FS ROOT_FLAGS \
-			LUKS_UUID LUKS_NAME USE_LVM CPU GPU_INTEL GPU_AMD NVIDIA LAPTOP DESKTOP WANT_DESKTOP WANT_APPS \
+			LUKS_UUID LUKS_NAME LUKS_FIDO2 USE_LVM CPU GPU_INTEL GPU_AMD NVIDIA LAPTOP DESKTOP WANT_DESKTOP WANT_APPS \
 			WANT_DOCKER WANT_DOTFILES WANT_NVIDIA WANT_POWER REPO_URL; do
 			printf '%s=%q\n' "$v" "${!v:-}"
 		done
@@ -259,6 +264,20 @@ fix_hooks() {
 	local f=/etc/mkinitcpio.conf hooks systemd=0 add=()
 	hooks=$(sed -n -E 's/^HOOKS=\((.*)\)/\1/p' "$f")
 	[[ " $hooks " == *" systemd "* ]] && systemd=1
+	# a FIDO2 key can only be used by the systemd initramfs: switch a busybox one over
+	if [[ ${LUKS_FIDO2:-0} == 1 ]] && ((!systemd)); then
+		local w conv=""
+		for w in $hooks; do
+			case $w in
+			udev) conv+="systemd " ;;
+			keymap | consolefont | usr | resume | encrypt) ;; # sd-vconsole / systemd / sd-encrypt do these
+			keyboard) conv+="keyboard sd-vconsole " ;;
+			*) conv+="$w " ;;
+			esac
+		done
+		hooks=${conv% }
+		systemd=1
+	fi
 	if [[ -n $LUKS_UUID ]]; then
 		if ((systemd)); then add+=(sd-encrypt); else add+=(encrypt); fi
 	fi
@@ -281,7 +300,10 @@ fix_hooks() {
 luks_option() {
 	[[ -n $LUKS_UUID ]] || return 0
 	if ((KERNEL_SYSTEMD_HOOKS)); then
-		echo "rd.luks.name=$LUKS_UUID=${LUKS_NAME:-cryptroot}"
+		local fido=""
+		# YubiKey enrolled: try it first (PIN + touch), the passphrase after ~30 s or without it
+		[[ ${LUKS_FIDO2:-0} == 1 ]] && fido=" rd.luks.options=$LUKS_UUID=fido2-device=auto"
+		echo "rd.luks.name=$LUKS_UUID=${LUKS_NAME:-cryptroot}$fido"
 	else
 		echo "cryptdevice=UUID=$LUKS_UUID:${LUKS_NAME:-cryptroot}"
 	fi
@@ -388,6 +410,7 @@ EOF
 	((GPU_AMD)) && base+=(vulkan-radeon)
 	[[ $ROOT_FS == btrfs ]] && base+=(btrfs-progs)
 	((USE_LVM)) && base+=(lvm2)
+	[[ ${LUKS_FIDO2:-0} == 1 ]] && base+=(libfido2 pam-u2f yubikey-manager)
 	[[ $WANT_NVIDIA == 1 && $NVIDIA == open ]] && base+=(nvidia-open-dkms nvidia-utils nvidia-settings)
 
 	# the desktop packages come from the dotfiles (install/packages/), see below
