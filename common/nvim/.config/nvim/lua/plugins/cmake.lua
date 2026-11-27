@@ -2,6 +2,23 @@
 return {
   {
     "Civitasv/cmake-tools.nvim",
+    init = function()
+      -- :CppInit [preset]: make a project ready for clangd, CMake, tests (util/project.lua)
+      vim.api.nvim_create_user_command("CppInit", function(o)
+        require("util.project").init(o.args)
+      end, {
+        nargs = "?",
+        desc = "C++ project: configure + build + clangd + tests",
+        complete = function()
+          return { "debug", "release", "coverage", "profile" }
+        end,
+      })
+    end,
+    config = function(_, opts)
+      require("cmake-tools").setup(opts)
+      -- every configure / build keeps clangd and the test summary in step
+      require("util.project").hook_cmake_tools()
+    end,
     opts = {
       cmake_command = "cmake",
       ctest_command = "ctest",
@@ -24,6 +41,7 @@ return {
       cmake_virtual_text_support = true,
     },
     keys = {
+      { "<leader>mi", "<cmd>CppInit<cr>", desc = "Init project (configure, build, clangd, tests)" },
       { "<leader>mg", "<cmd>CMakeGenerate<cr>", desc = "Generate (configure)" },
       { "<leader>mb", "<cmd>CMakeBuild<cr>", desc = "Build" },
       { "<leader>mB", "<cmd>CMakeBuild!<cr>", desc = "Clean + build" },

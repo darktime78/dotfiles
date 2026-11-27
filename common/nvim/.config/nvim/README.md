@@ -26,7 +26,7 @@ A LazyVim-based config like [craftzdog/dotfiles-public](https://github.com/craft
 ├── init.lua
 ├── lua/config/{lazy,options,keymaps,autocmds}.lua
 ├── lua/plugins/{colorscheme,coding,editor,ui,cpp,cmake,dap,test,coverage,formatting,snippets,perf,git,opencode,localai}.lua
-├── lua/util/{run,target,gdb_dashboard,coverage,perf,ai_context,discipline,localai}.lua
+├── lua/util/{run,target,gdb_dashboard,gtest,project,coverage,missing_tests,perf,ai_context,discipline,localai}.lua
 ├── luasnippets/cpp.lua
 └── extras/gdbinit.d/init          -> copy to ~/.gdbinit.d/init
 project-template/                   -> sample CMake + GTest project to try everything
@@ -79,8 +79,9 @@ nvim   # lazy.nvim bootstraps and installs everything; then run :checkhealth
 cp -r ~/.config/nvim/project-template ~/demo && cd ~/demo && git init && nvim src/main.cpp
 ```
 
-1. `<leader>mp` → pick the **debug** preset, `<leader>mg` to configure (compile_commands.json is
-   symlinked into the root so clangd works), `<leader>mb` to build.
+1. `<leader>mi` (`:CppInit`) configures the **debug** preset, builds, links compile_commands.json
+   into the root, restarts clangd and maps the tests. (By hand: `<leader>mp` preset, `<leader>mg`
+   configure, `<leader>mb` build; the same refresh runs after each of them.)
 2. `<leader>ml` → choose `demo_app` as launch target, `<leader>mr` runs it.
 3. Put the cursor on the `calc.push(...)` line, press **F9**, then **F5** (or `<leader>md` which
    builds first). dap-ui opens: Scopes (expand **Registers**), call stack, watches, breakpoints,
@@ -92,7 +93,11 @@ cp -r ~/.config/nvim/project-template ~/demo && cd ~/demo && git init && nvim sr
    `<leader>td` debugs it in gdb, `<leader>ts` opens the summary.
 7. `<leader>tC` builds the **coverage** preset, runs the tests, writes
    `build/coverage/coverage.info` (+ HTML in `build/coverage/coverage-html/`) and shows covered /
-   uncovered lines in the gutter. The `b == 0` branch of `divide` shows as uncovered.
+   uncovered lines in the gutter plus the coverage summary. The `b == 0` branch of `divide`
+   shows as uncovered.
+   `<leader>tm` (`:GtestMissing`) lists the functions no test calls and offers: append
+   `TEST()` stubs to the matching `tests/*_test.cpp` (they show as skipped until written),
+   ask OpenCode to write the tests, or a quickfix list.
 8. Profiling: `<leader>mp` → **profile** preset (RelWithDebInfo + frame pointers), `<leader>mb`,
    then `<leader>pr` and enter `--bench` as arguments. perf runs in a split; when it finishes the
    hotspot table opens and `count_primes_naive` is at the top in red.
@@ -115,6 +120,7 @@ cp -r ~/.config/nvim/project-template ~/demo && cd ~/demo && git init && nvim sr
 
 | Key | Action |
 |---|---|
+| `<leader>mi` | `:CppInit [preset]`: configure + build + clangd + tests (offers the template in an empty folder) |
 | `<leader>mg` | Generate (configure) |
 | `<leader>mb` / `<leader>mB` | Build / clean + build |
 | `<leader>mr` / `<leader>md` | Run / debug launch target (gdb) |
@@ -149,7 +155,9 @@ cp -r ~/.config/nvim/project-template ~/demo && cd ~/demo && git init && nvim sr
 
 | Key | Action |
 |---|---|
-| `<leader>tC` | Build coverage preset, run tests, load lcov |
+| `<leader>tC` | Build coverage preset, run tests, show coverage + summary |
+| `<leader>tm` | Missing tests from coverage: stubs / OpenCode / list (`:GtestMissing`) |
+| `<leader>tg` | GoogleTest without cmake-tools: configure + build + map tests |
 | `<leader>tL` | Load the last coverage report |
 | `<leader>tc` | Toggle coverage signs |
 | `<leader>tv` | Coverage summary popup |
@@ -264,7 +272,16 @@ profile shows a red hotspot → `a` in the table or `<leader>op` on the function
 
 ## A new CMake project (project-template)
 
-Copy `project-template/`, open any `.cpp` file: the first time, `cmake --preset debug` runs
+In an empty folder (or any CMake project root) run `:CppInit` / `<leader>mi`: it offers to
+copy the template, sets cmake-tools to that root and the **debug** preset, configures,
+builds, links `compile_commands.json`, restarts clangd and maps the tests in the summary.
+After that the cmake-tools commands keep it so: every configure (also a preset or build type
+switch) re-links the database and restarts clangd when it changed, every build re-maps the
+tests, so the test summary keeps working across rebuilds. The coverage and profile presets
+don't touch the root database. New `tests/*_test.cpp` files are built without editing
+CMakeLists.txt.
+
+Without `:CppInit`: copy `project-template/`, open any `.cpp` file: the first time, `cmake --preset debug` runs
 in the background (GoogleTest is downloaded), then clangd restarts with the real flags.
 Until then `compile_flags.txt` gives clangd C++20 and `include/`, so there are no false
 errors. `<leader>tg` builds and maps the GoogleTest files to `unit_tests`; after that the

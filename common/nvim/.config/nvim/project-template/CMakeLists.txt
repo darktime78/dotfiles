@@ -9,16 +9,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# clangd looks for compile_commands.json in the project root: link this build's one there
-# (the last configured preset wins; compile_flags.txt covers the time before the first one)
-if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
-  file(CREATE_LINK ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
-       RESULT _compile_db_link SYMBOLIC)
-endif()
-
 option(BUILD_TESTS "Build GoogleTest unit tests" ON)
 option(ENABLE_COVERAGE "Instrument code for gcov coverage" OFF)
 option(ENABLE_PROFILING "Keep frame pointers for perf call graphs" OFF)
+
+# clangd looks for compile_commands.json in the project root: link this build's one there.
+# Coverage / profile builds don't: clangd and the test summary stay on the normal build.
+# (compile_flags.txt covers the time before the first configure)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR
+   AND NOT ENABLE_COVERAGE
+   AND NOT ENABLE_PROFILING)
+  file(CREATE_LINK ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+       RESULT _compile_db_link SYMBOLIC)
+endif()
 
 if(ENABLE_PROFILING)
   add_compile_options(-fno-omit-frame-pointer)
@@ -49,7 +52,9 @@ if(BUILD_TESTS)
   FetchContent_MakeAvailable(googletest)
 
   enable_testing()
-  add_executable(unit_tests tests/calculator_test.cpp)
+  # every tests/*_test.cpp (new ones, also from <leader>tm stubs, need no edit here)
+  file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/tests/*_test.cpp)
+  add_executable(unit_tests ${TEST_SOURCES})
   target_link_libraries(unit_tests PRIVATE demo_core GTest::gtest_main)
 
   include(GoogleTest)
