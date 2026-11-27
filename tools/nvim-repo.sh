@@ -28,16 +28,32 @@ elif [[ -n ${NVIM_REPO:-} ]]; then
 	git remote set-url "$REMOTE" "$URL"
 fi
 
+# uncommitted changes: git subtree needs a clean tree (--rejoin adds a commit)
+dirty() { git status --porcelain --untracked-files=no -- "$@"; }
+
 case ${1:-} in
 push)
+	if [[ -n $(dirty "$PREFIX") ]]; then
+		echo "Uncommitted changes in the Neovim config; commit them first so they are pushed:" >&2
+		dirty "$PREFIX" | sed 's/^/  /' >&2
+		echo "  git add $PREFIX && git commit -m 'nvim: ...'" >&2
+		exit 1
+	fi
+	if [[ -n $(dirty) ]]; then
+		# other files: put aside during the push, back afterwards
+		echo "(your other uncommitted changes are put aside for the push and come back)"
+		git stash push -q -m "nvim-repo.sh push" || exit 1
+		trap 'git stash pop -q || echo "your changes are in: git stash list" >&2' EXIT
+	fi
 	echo "Neovim config -> $(git remote get-url "$REMOTE") ($BRANCH)"
 	# --rejoin: a small merge commit here remembers what the nvim repo has, so later
 	# pushes are quick and "pull" can merge changes made over there
 	git subtree push --rejoin --prefix="$PREFIX" "$REMOTE" "$BRANCH"
 	;;
 pull)
-	if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
-		echo "commit or stash your changes first" >&2
+	if [[ -n $(dirty) ]]; then
+		echo "Commit or stash your changes first (git subtree needs a clean tree):" >&2
+		dirty | sed 's/^/  /' >&2
 		exit 1
 	fi
 	git subtree pull --prefix="$PREFIX" "$REMOTE" "$BRANCH" \
