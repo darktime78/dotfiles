@@ -9,6 +9,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# clangd looks for compile_commands.json in the project root: link this build's one there
+# (the last configured preset wins; compile_flags.txt covers the time before the first one)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  file(CREATE_LINK ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+       RESULT _compile_db_link SYMBOLIC)
+endif()
+
 option(BUILD_TESTS "Build GoogleTest unit tests" ON)
 option(ENABLE_COVERAGE "Instrument code for gcov coverage" OFF)
 option(ENABLE_PROFILING "Keep frame pointers for perf call graphs" OFF)

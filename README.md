@@ -262,6 +262,15 @@ Typical loops: build fails → `<leader>ob`; tests pass but coverage has red bar
 profile shows a red hotspot → `a` in the table or `<leader>op` on the function; before pushing →
 `<leader>oB`, then `<leader>gM` to read the diff yourself.
 
+## A new CMake project (project-template)
+
+Copy `project-template/`, open any `.cpp` file: the first time, `cmake --preset debug` runs
+in the background (GoogleTest is downloaded), then clangd restarts with the real flags.
+Until then `compile_flags.txt` gives clangd C++20 and `include/`, so there are no false
+errors. `<leader>tg` builds and maps the GoogleTest files to `unit_tests`; after that the
+usual `<leader>tt` / `<leader>tr` / `<leader>ts` keys run them. Opening a test file of a
+built project maps it by itself. Off: `vim.g.cmake_auto_configure = false`.
+
 ## Local AI (Qwen on this laptop)
 
 arch-local-ai sets up llama.cpp, the models and OpenCode on Arch Linux. With it running
