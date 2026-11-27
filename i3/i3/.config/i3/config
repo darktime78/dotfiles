@@ -192,7 +192,7 @@ assign [class="^Alacritty$"] $wspace2
 assign [class="^(nvim|neovide)$"] $wspace3
 assign [instance="^nvim$"] $wspace3
 assign [class="^docker-nvim"] $wspace3
-assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+assign [class="(?i)^(sublime_text|code|code-oss|dev\.zed\.zed.*)$"] $wspace3
 assign [class="(?i)^(gnome-text-editor|gedit|mousepad|kate)$"] $wspace3
 assign [class="^jetbrains-"] $wspace3
 # 4 - games: Steam (docker), Wine games (wine-game; the class is the .exe name)

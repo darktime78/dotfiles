@@ -10,6 +10,7 @@ brew "FelixKratz/formulae/borders"
 # terminal (the Alacritty cask is disabled in Homebrew; Ghostty has the same config)
 cask "ghostty"
 cask "font-hack-nerd-font"
+cask "zed"
 
 # shell and tools (common/)
 brew "git"

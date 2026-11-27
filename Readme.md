@@ -90,6 +90,8 @@ launcher, `$mod+c` Docker apps, `$mod+1…0` workspaces, `$mod+Shift+e` power me
 | your git name and email | `~/.gitconfig.local` (install.sh asks) |
 | LocalAI buttons on the bar | `~/.config/dotfiles/services.conf` |
 | Docker apps | `~/.config/docker/dockerfunc`, then `docker-launchers` for rofi |
+| what opens files on double-click (PCManFM, xdg-open) | `default-apps zed` (default if installed), `nvim`, `sublime`, `code`; `default-apps --show` |
+| Zed editor settings | `~/.config/zed/settings.json`: written once from `install/templates/zed/`, then yours (Zed edits it too) |
 | folder icons in PCManFM, file dialogs, rofi | `folder-color green` (default), `teal`, `'#5fa86f'`; `--dark` for a dark PCManFM |
 
 Sway and i3 differ only where X11 needs other tools: polybar for waybar, dunst for mako,

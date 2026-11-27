@@ -1,0 +1,13 @@
+#!/bin/bash
+# zed-open [PATH...]: start Zed, however it was installed. The Arch package calls it
+# `zeditor`, the zed.dev install script `zed` (in ~/.local/bin), Flathub dev.zed.Zed.
+# (A plain `zed` in the shell works too: zsh has an alias for zeditor.)
+for z in zeditor "$HOME/.local/bin/zed" /usr/bin/zed; do
+	command -v "$z" >/dev/null 2>&1 && exec "$z" "$@"
+done
+if command -v flatpak >/dev/null && flatpak info dev.zed.Zed >/dev/null 2>&1; then
+	exec flatpak run dev.zed.Zed "$@"
+fi
+notify-send -u critical "Zed is not installed" "Arch: sudo pacman -S zed" 2>/dev/null
+echo "zed-open: Zed is not installed" >&2
+exit 1

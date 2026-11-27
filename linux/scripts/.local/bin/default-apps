@@ -1,0 +1,124 @@
+#!/bin/bash
+#
+# default-apps: which program opens files when you double-click them in PCManFM
+# (and for xdg-open, browser downloads, "open with" in other apps).
+#
+#   default-apps              the first one installed: Zed, Neovim, Sublime, VS Code
+#   default-apps zed          text and source files -> Zed
+#   default-apps nvim         ... -> Neovim in its own terminal window
+#   default-apps sublime      ... -> Sublime Text
+#   default-apps code         ... -> VS Code
+#   default-apps --show       what opens what now
+#
+# Folders always open in PCManFM. Also adds "Open in <editor>" to the right-click
+# menu of folders in PCManFM. Settings go to ~/.config/mimeapps.list (yours, not in git).
+
+APPS_DIRS=("$HOME/.local/share/applications" /usr/local/share/applications /usr/share/applications
+	"$HOME/.local/share/flatpak/exports/share/applications" /var/lib/flatpak/exports/share/applications)
+ACTIONS=$HOME/.local/share/file-manager/actions
+
+# text and source files (the types PCManFM / shared-mime-info give them)
+TEXT=(
+	text/plain text/markdown text/x-markdown text/x-log text/x-readme text/csv
+	text/x-c text/x-csrc text/x-chdr text/x-c++ text/x-c++src text/x-c++hdr
+	text/x-cmake text/x-makefile text/x-meson text/x-python text/x-python3 text/x-script.python
+	application/x-shellscript text/x-shellscript application/x-sh text/x-lua text/x-go
+	text/rust text/x-rust text/x-java text/x-kotlin text/x-csharp text/x-php
+	text/javascript application/javascript application/x-javascript
+	text/x-typescript application/x-typescript text/css text/x-scss text/x-sass
+	application/json application/x-yaml application/yaml text/x-yaml application/toml text/x-toml
+	application/xml text/xml text/x-diff text/x-patch text/x-dockerfile text/x-tex
+	application/x-wine-extension-ini text/x-ini application/x-zerosize application/sql text/x-sql
+)
+
+die() { echo "default-apps: $*" >&2; exit 1; }
+
+find_desktop() { # name.desktop... -> the first one that is installed
+	local id d
+	for id in "$@"; do
+		for d in "${APPS_DIRS[@]}"; do
+			[[ -f $d/$id ]] && { echo "$id"; return 0; }
+		done
+	done
+	return 1
+}
+
+set_default() { # desktop-id type...
+	local id=$1 t
+	shift
+	if command -v gio >/dev/null; then
+		for t in "$@"; do gio mime "$t" "$id" >/dev/null 2>&1; done
+	elif command -v xdg-mime >/dev/null; then
+		xdg-mime default "$id" "$@"
+	else
+		die "needs gio (glib2) or xdg-mime (xdg-utils)"
+	fi
+}
+
+query() { # type
+	if command -v gio >/dev/null; then
+		gio mime "$1" 2>/dev/null | sed -n 's/^Default application for .*: //p'
+	else
+		xdg-mime query default "$1" 2>/dev/null
+	fi
+}
+
+if [[ ${1:-} == --show ]]; then
+	for t in text/plain text/x-c++src text/x-python application/json text/markdown inode/directory; do
+		printf '%-18s %s\n' "$t" "$(query "$t")"
+	done
+	exit 0
+fi
+[[ ${1:-} == -h || ${1:-} == --help ]] && { sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
+
+editor=${1:-}
+if [[ -z $editor ]]; then
+	if find_desktop dev.zed.Zed.desktop >/dev/null; then editor=zed
+	elif find_desktop nvim.desktop >/dev/null; then editor=nvim
+	elif find_desktop sublime_text.desktop >/dev/null; then editor=sublime
+	elif find_desktop code.desktop code-oss.desktop visual-studio-code.desktop >/dev/null; then editor=code
+	else die "no editor installed yet (Zed: sudo pacman -S zed)"; fi
+fi
+
+case $editor in
+zed)
+	id=$(find_desktop dev.zed.Zed.desktop) || die "Zed is not installed (Arch: pacman -S zed)"
+	name=Zed icon=zed open="$HOME/.local/bin/zed-open %f"
+	;;
+nvim)
+	# docker-launchers writes this one: Neovim in an Alacritty window (workspace 3)
+	id=$(find_desktop nvim.desktop) || die "no nvim.desktop (run docker-launchers)"
+	name=Neovim icon=nvim open="alacritty --class nvim --working-directory %f -e nvim ."
+	;;
+sublime)
+	id=$(find_desktop sublime_text.desktop) || die "Sublime Text is not installed"
+	name="Sublime Text" icon=sublime-text open="subl %f"
+	;;
+code)
+	id=$(find_desktop code.desktop code-oss.desktop visual-studio-code.desktop) || die "VS Code is not installed"
+	name="VS Code" icon=vscode open="${id%.desktop} %f"
+	[[ $id == visual-studio-code.desktop ]] && open="code %f"
+	;;
+*) die "unknown editor '$editor' (zed, nvim, sublime, code)" ;;
+esac
+
+set_default "$id" "${TEXT[@]}"
+fm=$(find_desktop pcmanfm.desktop pcmanfm-qt.desktop) && set_default "$fm" inode/directory
+
+# PCManFM right-click on a folder: "Open in <editor>"
+mkdir -p "$ACTIONS"
+rm -f "$ACTIONS"/open-in-editor.desktop
+cat >"$ACTIONS/open-in-editor.desktop" <<EOF
+[Desktop Entry]
+Type=Action
+Name=Open in $name
+Icon=$icon
+Profiles=folder;
+
+[X-Action-Profile folder]
+MimeTypes=inode/directory;
+Exec=$open
+EOF
+
+echo "text and source files -> $name ($id)${fm:+, folders -> PCManFM}"
+echo "right-click a folder in PCManFM: \"Open in $name\" (restart PCManFM: pkill pcmanfm)"

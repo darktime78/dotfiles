@@ -1,0 +1,33 @@
+// Zed settings, written once by the dotfiles (install/templates/zed/settings.json).
+// From now on this file is yours: Zed changes it too (Ctrl+, opens it).
+// All settings: https://zed.dev/docs/configuring-zed
+{
+  // same look as the terminal and Neovim: Hack, dark
+  "theme": {
+    "mode": "dark",
+    "light": "One Light",
+    "dark": "One Dark"
+  },
+  "ui_font_family": "Hack Nerd Font",
+  "ui_font_size": 15,
+  "buffer_font_family": "Hack Nerd Font Mono",
+  "buffer_font_size": 14,
+  "terminal": {
+    "font_family": "Hack Nerd Font Mono",
+    "font_size": 13
+  },
+
+  // true: Vim keys, as in Neovim
+  "vim_mode": false,
+  "tab_size": 4,
+  "format_on_save": "on",
+  "remove_trailing_whitespace_on_save": true,
+  "ensure_final_newline_on_save": true,
+
+  "telemetry": {
+    "diagnostics": false,
+    "metrics": false
+  },
+  // the package manager updates Zed (pacman / brew); the zed.dev script install sets true
+  "auto_update": false
+}

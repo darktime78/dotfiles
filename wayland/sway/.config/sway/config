@@ -202,8 +202,8 @@ assign [app_id="^Alacritty$"] $wspace2
 # 3 - editors: Neovim (alacritty --class nvim), Sublime, IDEs
 assign [app_id="^(nvim|neovide)$"] $wspace3
 assign [app_id="^docker-nvim"] $wspace3
-assign [app_id="(?i)^(sublime_text|code|code-oss)$"] $wspace3
-assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+assign [app_id="(?i)^(sublime_text|code|code-oss|dev\.zed\.zed.*)$"] $wspace3
+assign [class="(?i)^(sublime_text|code|code-oss|dev\.zed\.zed.*)$"] $wspace3
 assign [app_id="^org\.(gnome\.TextEditor|gnome\.gedit|xfce\.mousepad|kde\.kate)$"] $wspace3
 assign [class="^jetbrains-"] $wspace3
 # 4 - games: Steam (docker), Wine games (wine-game; the class is the .exe name)

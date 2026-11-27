@@ -280,7 +280,23 @@ packages_ubuntu() {
 		fi
 	fi
 	fonts_download
+
+	# Zed: no Ubuntu package; zed.dev's own install script (~/.local/zed.app, updates itself)
+	if ((DESKTOP)) && ! have zed && ! have zeditor && [[ ! -x $HOME/.local/bin/zed ]]; then
+		info "Zed: zed.dev install script"
+		if ((!DRY)); then
+			curl -fsSL https://zed.dev/install.sh | sh >/dev/null || warn "Zed install failed (https://zed.dev/docs/linux)"
+			local app=$HOME/.local/zed.app desk=$HOME/.local/share/applications/dev.zed.Zed.desktop
+			if [[ ! -f $desk && -f $app/share/applications/dev.zed.Zed.desktop ]]; then
+				install -D "$app/share/applications/dev.zed.Zed.desktop" -t "$HOME/.local/share/applications"
+				sed -i -e "s|Icon=zed|Icon=$app/share/icons/hicolor/512x512/apps/zed.png|" \
+					-e "s|Exec=zed|Exec=$app/bin/zed|" "$desk"
+			fi
+			ZED_AUTO_UPDATE=true
+		fi
+	fi
 }
+ZED_AUTO_UPDATE=false
 
 # Hack Nerd Font from the nerd-fonts releases (Ubuntu has no package for it)
 fonts_download() {
@@ -360,6 +376,15 @@ local_files() {
 		local_file "$HOME/.config/alacritty/local.toml" "# this machine only, e.g. [font] size = 12.0"
 		local_file "$HOME/.config/ghostty/local" "# this machine only, e.g. font-size = 12"
 	fi
+	# Zed changes its settings file itself, so it is a copy (once), not a link
+	if ((DESKTOP)) || [[ $PROFILE == macos ]]; then
+		local zs=$HOME/.config/zed/settings.json
+		if [[ ! -e $zs ]]; then
+			info "new: ~/.config/zed/settings.json (Hack fonts, dark, no telemetry)"
+			((DRY)) || { mkdir -p "${zs%/*}"; sed "s/\"auto_update\": false/\"auto_update\": $ZED_AUTO_UPDATE/" \
+				"$REPO/install/templates/zed/settings.json" >"$zs"; }
+		fi
+	fi
 	[[ $PROFILE == wayland ]] && local_file "$HOME/.config/sway/config.local" "# this machine only (outputs, input), included by ~/.config/sway/config"
 	[[ $PROFILE == i3 ]] && local_file "$HOME/.config/i3/config.local" "# this machine only, included by ~/.config/i3/config"
 	if ((DESKTOP)); then
@@ -389,6 +414,14 @@ linux_extras() {
 		! cmp -s "$REPO/i3/system/30-touchpad.conf" /etc/X11/xorg.conf.d/30-touchpad.conf; then
 		info "touchpad tap-to-click: /etc/X11/xorg.conf.d/30-touchpad.conf"
 		run sudo install -Dm644 "$REPO/i3/system/30-touchpad.conf" /etc/X11/xorg.conf.d/30-touchpad.conf
+	fi
+
+	# double-click in PCManFM: text and source files open in Zed (else Neovim), folders
+	# in PCManFM. Only the first time: later changes are yours (default-apps EDITOR)
+	if ! grep -qs '^text/plain=' "$HOME/.config/mimeapps.list"; then
+		info "default apps: text files -> Zed (or Neovim), folders -> PCManFM (change: default-apps)"
+		run "$REPO/linux/scripts/.local/bin/default-apps" >/dev/null 2>&1 ||
+			info "  (no editor installed yet: run default-apps later)"
 	fi
 
 	# wallpaper and lock screen picture

@@ -13,3 +13,6 @@ fonts-hack
 fonts-noto-color-emoji
 pcmanfm
 papirus-icon-theme
+xdg-utils
+# Zed itself comes from zed.dev's install script (install.sh); it needs Vulkan
+mesa-vulkan-drivers

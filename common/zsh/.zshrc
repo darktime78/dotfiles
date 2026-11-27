@@ -33,6 +33,8 @@ alias ll='ls -hlF' lla='ls -hAlF' lsa='ls -AF' la='ls -AF' l='ls -CF'
 alias tmux='tmux -2'
 alias aria2c='aria2c --summary-interval=0 --continue'
 alias yt-dlp='yt-dlp --retries infinite'
+# the Arch package names the Zed command zeditor
+(( $+commands[zeditor] && ! $+commands[zed] )) && alias zed=zeditor
 
 unsetopt sharehistory
 setopt APPEND_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_REDUCE_BLANKS
