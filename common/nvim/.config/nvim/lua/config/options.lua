@@ -49,3 +49,7 @@ vim.g.localai_statusline = true -- 󰚩 fim● qwen● in the status line
 -- ~2.5k tokens per @diff/@branch/@uncovered context: the 4B model reads ~50-150 tokens/s,
 -- so 24k characters (the cloud default) would add minutes to every prompt
 vim.g.ai_context_max_chars = 8000
+
+-- CMake projects: configure once in the background when the first C/C++ file opens
+-- (clangd gets the real flags) and map GoogleTest files to their executables
+vim.g.cmake_auto_configure = true
