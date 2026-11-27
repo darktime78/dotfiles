@@ -7,9 +7,20 @@ return {
     dependencies = { "alfaix/neotest-gtest" },
     init = function()
       require("util.gtest").setup() -- first configure for clangd, auto-mapping of tests
+      -- :GtestMissing [list|stubs|ai]: tests the coverage report says are missing
+      vim.api.nvim_create_user_command("GtestMissing", function(o)
+        require("util.missing_tests").run(o.args ~= "" and o.args or nil)
+      end, {
+        nargs = "?",
+        desc = "Missing GoogleTest tests from coverage",
+        complete = function()
+          return { "list", "stubs", "ai" }
+        end,
+      })
     end,
     keys = {
       { "<leader>tg", function() require("util.gtest").setup_project() end, desc = "GoogleTest: configure + build + map tests" },
+      { "<leader>tm", function() require("util.missing_tests").run() end, desc = "Missing tests (from coverage)" },
     },
     opts = function(_, opts)
       opts.adapters = opts.adapters or {}

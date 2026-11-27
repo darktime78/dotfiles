@@ -34,7 +34,7 @@ function M.root(path)
 end
 
 ---The configure preset to use: "debug" if CMakePresets.json has it, else nil (plain cmake)
-local function preset(root)
+function M.preset(root)
   local f = io.open(root .. "/CMakePresets.json")
   if not f then
     return nil
@@ -52,12 +52,30 @@ local function preset(root)
   return nil
 end
 
-local function build_dir(root)
+local preset = M.preset
+
+---The build folder: cmake-tools' current one (its preset / build type) when it manages
+---this project, else build/<preset> (build/debug)
+function M.build_dir(root)
+  local cmake = package.loaded["cmake-tools"] -- only if it is in use (don't load it here)
+  if type(cmake) == "table" and cmake.get_build_directory then
+    local cfg = cmake.get_config and cmake.get_config()
+    local dir = tostring(cmake.get_build_directory() or "")
+    if cfg and tostring(cfg.cwd) == root and dir ~= "" and dir ~= "nil" then
+      return dir
+    end
+  end
   return root .. "/build/" .. (preset(root) or "debug")
 end
+local build_dir = M.build_dir
 
-local function configured(root)
+function M.configured(root)
   return vim.uv.fs_stat(build_dir(root) .. "/CMakeCache.txt") ~= nil
+end
+
+local configured = M.configured
+local function restart_clangd()
+  M.restart_clangd()
 end
 
 ---Run commands one after another in root; on_done(ok)
@@ -101,15 +119,27 @@ end
 
 ---clangd reads compile_commands.json from the project root (CMakeLists.txt links it there
 ---in the template; for other projects we link it here)
-local function link_compile_db(root)
+---@param force boolean? also re-point an existing link (another build folder now)
+function M.link_compile_db(root, force)
   local db = build_dir(root) .. "/compile_commands.json"
   local link = root .. "/compile_commands.json"
-  if vim.uv.fs_stat(db) and not vim.uv.fs_lstat(link) then
-    vim.uv.fs_symlink(db, link)
+  if not vim.uv.fs_stat(db) then
+    return false
   end
+  local st = vim.uv.fs_lstat(link)
+  if st and force and st.type == "link" and vim.uv.fs_readlink(link) ~= db then
+    vim.uv.fs_unlink(link)
+    st = nil
+  end
+  if not st then
+    vim.uv.fs_symlink(db, link)
+    return true
+  end
+  return false
 end
+local link_compile_db = M.link_compile_db
 
-local function restart_clangd()
+function M.restart_clangd()
   if #vim.lsp.get_clients({ name = "clangd" }) == 0 then
     return -- not running yet: it starts with the right flags anyway
   end
