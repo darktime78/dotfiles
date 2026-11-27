@@ -19,7 +19,8 @@ if ! source "$CONF" 2>/dev/null; then
 fi
 
 label=${LABEL[$NAME]:-$NAME}
-running() { [[ -n ${CHECK[$NAME]} ]] && bash -c "${CHECK[$NAME]}" >/dev/null 2>&1; }
+# in this shell (no extra bash per check: the bar runs this every 2 minutes)
+running() { [[ -n ${CHECK[$NAME]} ]] && eval "${CHECK[$NAME]}" >/dev/null 2>&1; }
 
 case ${2:-} in
 toggle)
