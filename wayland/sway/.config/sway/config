@@ -202,8 +202,12 @@ assign [app_id="^Alacritty$"] $wspace2
 # 3 - editors: Neovim (alacritty --class nvim), Sublime, IDEs
 assign [app_id="^(nvim|neovide)$"] $wspace3
 assign [app_id="^docker-nvim"] $wspace3
-assign [app_id="(?i)^(sublime_text|code|code-oss|dev\.zed\.zed.*)$"] $wspace3
-assign [class="(?i)^(sublime_text|code|code-oss|dev\.zed\.zed.*)$"] $wspace3
+assign [app_id="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+# Zed: to 3 and show 3 with it. Its id depends on the build (dev.zed.Zed, -Dev,
+# -Preview, Flatpak), so any id with "zed" in it. Check: swaymsg -t get_tree | grep app_id
+for_window [app_id="(?i)zed"] move container to workspace $wspace3, workspace $wspace3
+for_window [class="(?i)zed"] move container to workspace $wspace3, workspace $wspace3
 assign [app_id="^org\.(gnome\.TextEditor|gnome\.gedit|xfce\.mousepad|kde\.kate)$"] $wspace3
 assign [class="^jetbrains-"] $wspace3
 # 4 - games: Steam (docker), Wine games (wine-game; the class is the .exe name)

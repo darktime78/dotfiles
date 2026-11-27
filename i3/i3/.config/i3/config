@@ -192,7 +192,10 @@ assign [class="^Alacritty$"] $wspace2
 assign [class="^(nvim|neovide)$"] $wspace3
 assign [instance="^nvim$"] $wspace3
 assign [class="^docker-nvim"] $wspace3
-assign [class="(?i)^(sublime_text|code|code-oss|dev\.zed\.zed.*)$"] $wspace3
+assign [class="(?i)^(sublime_text|code|code-oss)$"] $wspace3
+# Zed: to 3 and show 3 with it (any class with "zed": the id depends on the build).
+# Check: xprop WM_CLASS, then click the Zed window
+for_window [class="(?i)zed"] move container to workspace $wspace3, workspace $wspace3
 assign [class="(?i)^(gnome-text-editor|gedit|mousepad|kate)$"] $wspace3
 assign [class="^jetbrains-"] $wspace3
 # 4 - games: Steam (docker), Wine games (wine-game; the class is the .exe name)
