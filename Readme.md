@@ -66,9 +66,9 @@ i3/        i3, polybar, dunst, picom, .xinitrc, system/ (touchpad, copied to /et
 macos/     AeroSpace, SketchyBar
 docker/    images/ (one folder per app) and update.sh
 install/   arch-bootstrap.sh, packages/ (lists per system and profile)
-tools/     make_bars.py, check_parity.py, sync_upstream.py
-docs/      keys.md, wine-games.md, yubikey.md
-windows/   yubikey-setup.ps1 (run by hand on Windows)
+tools/     make_bars.py, check_parity.py, sync_upstream.py, subrepo.sh
+docs/      keys.md, wine-games.md
+yubikey/   YubiKey scripts for Arch, macOS, Windows (also its own repository)
 ```
 
 Each folder in `common/ linux/ wayland/ i3/ macos/` mirrors `$HOME`:
@@ -128,18 +128,30 @@ mode, Russian editions: [docs/wine-games.md](docs/wine-games.md).
 
 Disk unlock and login with a YubiKey: `yubikey-setup` (Arch: LUKS2 at boot, login, lock
 screen, sudo), `yubikey-setup-mac` (macOS login, FileVault on Apple silicon),
-`windows/yubikey-setup.ps1` (Windows 11: what Windows allows). Read
-[docs/yubikey.md](docs/yubikey.md) first: two keys, and keep the passwords.
+`yubikey/windows/yubikey-setup.ps1` (Windows 11: what Windows allows). They don't encrypt
+a disk; they add the key to one that is encrypted already. Read
+[yubikey/README.md](yubikey/README.md) first: two keys, and keep the passwords.
+The folder is also its own repository (`tools/subrepo.sh push yubikey`, below).
+
+## Folders that are their own repositories
+
+`tools/subrepo.sh push NAME` sends a folder, with its history, to its own repository
+(create it empty on GitHub first); `pull NAME` brings back changes made over there.
+
+| NAME | Folder | Repository | Use it alone |
+|---|---|---|---|
+| `nvim` | `common/nvim/.config/nvim` | darktime78/nvim-cpp | `git clone …/nvim-cpp ~/.config/nvim` |
+| `yubikey` | `yubikey` | darktime78/yubikey-setup | `git clone …/yubikey-setup && yubikey-setup/install.sh` |
+
+Run `push` after changing the folder. (`tools/nvim-repo.sh` is the old name for `nvim`.)
 
 ## Only the Neovim config
 
 The config lives in `common/nvim/.config/nvim` (also used by the nvim-cpp container).
 For a machine that needs only Neovim, either:
 
-* **its own repository**: `tools/nvim-repo.sh push` sends that folder, with its
-  history, to `github.com/darktime78/nvim-cpp` (create it empty first). Then anywhere:
-  `git clone https://github.com/darktime78/nvim-cpp ~/.config/nvim`. Changes made over
-  there come back with `tools/nvim-repo.sh pull`. Run `push` after changing the config.
+* **its own repository**: `tools/subrepo.sh push nvim` (above), then anywhere:
+  `git clone https://github.com/darktime78/nvim-cpp ~/.config/nvim`.
 * **no second repository**: check out only that folder of the dotfiles:
 
   ```sh

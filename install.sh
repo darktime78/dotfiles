@@ -90,7 +90,7 @@ wayland | i3)
 	PKGS+=" common/alacritty common/ghostty linux/rofi linux/fontconfig linux/ncmpcpp"
 	PKGS+=" linux/scripts linux/systemd linux/docker"
 	;;
-macos) PKGS+=" common/alacritty common/ghostty macos/aerospace macos/sketchybar macos/scripts" ;;
+macos) PKGS+=" common/alacritty common/ghostty macos/aerospace macos/sketchybar" ;;
 terminal) [[ $OS != macos ]] && PKGS+=" linux/scripts linux/systemd linux/docker" ;;
 esac
 case $PROFILE in
@@ -184,21 +184,24 @@ real_dirs() { # relative path of the file
 }
 
 LINKED=0
-link_pkg() { # folder of this repo
-	local src rel dst
+link_one() { # file-in-repo path-below-home
+	local src=$1 rel=$2 dst=$HOME/$2
+	if [[ -L $dst && $(readlink "$dst") == "$src" ]]; then return 0; fi
+	if ! real_dirs "$rel"; then warn "could not create the folder for ~/$rel"; return 0; fi
+	# never move or replace a file of this repo (a folder link we could not undo)
+	if ((!DRY)) && in_repo "$dst"; then die "~/$rel is inside $REPO (a link to a folder?): remove that link and run again"; fi
+	if [[ -L $dst ]] && ours "$dst"; then
+		run rm -f "$dst" # our own link from an older layout or clone: just replace it
+	elif [[ -e $dst || -L $dst ]]; then
+		backup "$dst" "$rel"
+	fi
+	if run ln -s "$src" "$dst"; then LINKED=$((LINKED + 1)); else warn "could not link ~/$rel"; fi
+}
+
+link_pkg() { # folder of this repo, mirroring $HOME
+	local src
 	while IFS= read -r src; do
-		rel=${src#"$REPO/$1/"}
-		dst=$HOME/$rel
-		if [[ -L $dst && $(readlink "$dst") == "$src" ]]; then continue; fi
-		if ! real_dirs "$rel"; then warn "could not create the folder for ~/$rel"; continue; fi
-		# never move or replace a file of this repo (a folder link we could not undo)
-		if ((!DRY)) && in_repo "$dst"; then die "~/$rel is inside $REPO (a link to a folder?): remove that link and run again"; fi
-		if [[ -L $dst ]] && ours "$dst"; then
-			run rm -f "$dst" # our own link from an older layout or clone: just replace it
-		elif [[ -e $dst || -L $dst ]]; then
-			backup "$dst" "$rel"
-		fi
-		if run ln -s "$src" "$dst"; then LINKED=$((LINKED + 1)); else warn "could not link ~/$rel"; fi
+		link_one "$src" "${src#"$REPO/$1/"}"
 	done < <(find "$REPO/$1" \( -type f -o -type l \) ! -name '.DS_Store' | sort)
 }
 
@@ -490,6 +493,11 @@ fi
 step "Links"
 remove_stale
 for p in $PKGS; do link_pkg "$p"; done
+# YubiKey scripts (yubikey/, also its own repository): the one for this system
+case $OS in
+macos) link_one "$REPO/yubikey/macos/yubikey-setup-mac" .local/bin/yubikey-setup-mac ;;
+arch) link_one "$REPO/yubikey/linux/yubikey-setup" .local/bin/yubikey-setup ;;
+esac
 info "$LINKED new link(s)"
 ((DRY)) || { mkdir -p "$STATE"; echo "$REPO" >"$STATE/repo"; } # for a later move of this folder
 

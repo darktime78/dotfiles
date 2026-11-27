@@ -17,7 +17,9 @@
 #   yubikey-setup undo disk       remove the key from the disk (passphrase only again)
 #
 # Everything it changes is copied first to /root/yubikey-backup/DATE/. PAM changes for
-# sudo are tested at once and put back if the test fails. Guide: docs/yubikey.md
+# sudo are tested at once and put back if the test fails.
+# It does NOT encrypt a disk: "disk" needs one that is already LUKS2 (from the install).
+# Guide: README.md next to this folder (github.com/darktime78/yubikey-setup)
 
 set -uo pipefail
 
@@ -40,6 +42,7 @@ usage() { sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 # ---------------------------------------------------------------- root, user, packages
 # The work runs as root (re-run through sudo); USER_NAME is the person behind it.
+case ${1:-} in -h | --help | "") usage ;; esac
 command -v pacman >/dev/null || die "this script is for Arch Linux (macOS: yubikey-setup-mac)"
 if [[ $EUID -ne 0 && ${1:-} != status && ${1:-} != -h && ${1:-} != --help && -n ${1:-} ]]; then
 	exec sudo "$(readlink -f "$0")" "$@"

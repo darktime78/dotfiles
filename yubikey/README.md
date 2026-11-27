@@ -1,7 +1,24 @@
-# YubiKey 5C NFC: disk encryption and login
+# YubiKey 5C NFC: disk unlock and login
 
-What the key can do on each system, and how to set it up with the scripts in these
-dotfiles. Your passwords keep working everywhere unless you turn them off yourself.
+What the key can do on Arch Linux, macOS and Windows 11, and scripts that set it up.
+Your passwords keep working everywhere unless you turn them off yourself.
+
+**The scripts don't encrypt anything.** They add the YubiKey as another way to unlock a
+disk that is already encrypted (LUKS2 on Arch, FileVault on macOS) and to log in. An
+unencrypted Arch disk has to be encrypted first (at install time, or with
+`cryptsetup reencrypt --encrypt` from a live USB after a full backup).
+
+## Get it
+
+Part of [darktime78/dotfiles](https://github.com/darktime78/dotfiles) (folder `yubikey/`,
+the dotfiles' `install.sh` puts the command on your PATH), or alone:
+
+```sh
+git clone https://github.com/darktime78/yubikey-setup ~/yubikey-setup
+~/yubikey-setup/install.sh        # links yubikey-setup (Arch) / yubikey-setup-mac (macOS)
+```
+
+Windows: download the repository as a ZIP and run `windows\yubikey-setup.ps1`.
 
 | | Disk at boot | Login / lock screen | Admin (sudo) |
 |---|---|---|---|
@@ -69,7 +86,7 @@ menu press `e` and add `systemd.unit=rescue.target`, log in as root and run
 ## macOS Ventura (and newer)
 
 ```sh
-brew install ykman          # also in the Brewfile
+brew install ykman          # (the dotfiles' Brewfile has it)
 yubikey-setup-mac setup     # PIV PIN/PUK, keys + certificates in 9a / 9d, pairing
 yubikey-setup-mac status
 yubikey-setup-mac lock-on-remove on   # optional: lock when the key is pulled out
@@ -90,7 +107,7 @@ ask for the PIV PIN when the key is in; the password still works.
 
 ## Windows 11
 
-Run `windows\yubikey-setup.ps1` in an administrator PowerShell
+Run `windows\yubikey-setup.ps1` (from this folder) in an administrator PowerShell
 (`Set-ExecutionPolicy -Scope Process Bypass` first). Without options it shows your account
 type, BitLocker and TPM, and the next steps.
 

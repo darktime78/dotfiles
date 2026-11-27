@@ -8,7 +8,7 @@ Run in an administrator PowerShell:
     .\yubikey-setup.ps1 -BitLockerPin   disk: BitLocker with TPM + startup PIN, recovery key saved
     .\yubikey-setup.ps1 -LoginTool      open the Yubico Login for Windows download (local accounts)
 
-What Windows can and can't do with a YubiKey (see docs/yubikey.md):
+What Windows can and can't do with a YubiKey (README.md, github.com/darktime78/yubikey-setup):
   - The system disk (BitLocker): a YubiKey can't unlock it before boot. TPM + PIN is the
     strong option; the YubiKey can't replace it.
   - Windows sign-in, local account: Yubico Login for Windows (x86 PCs, local accounts).

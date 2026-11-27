@@ -11,7 +11,7 @@
 #   yubikey-setup-mac lock-on-remove on   lock the screen when the key is pulled out (off)
 #   yubikey-setup-mac unpair              back to password only
 #
-# Needs: brew install ykman. Guide: docs/yubikey.md in the dotfiles.
+# Needs: brew install ykman. Guide: README.md (github.com/darktime78/yubikey-setup).
 
 set -uo pipefail
 
