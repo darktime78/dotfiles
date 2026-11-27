@@ -55,18 +55,30 @@ end
 ---@param path string?
 ---@return string?
 function M.root(path)
-  path = path or vim.api.nvim_buf_get_name(0)
-  if path == "" then
-    path = vim.uv.cwd()
+  local dir
+  if path then
+    dir = vim.fs.dirname(vim.fn.fnamemodify(path, ":p"))
+  else
+    -- the current file; from the test summary, a terminal, … (no file): the cwd itself
+    local name = vim.api.nvim_buf_get_name(0)
+    if vim.bo.buftype == "" and name ~= "" then
+      dir = vim.fs.dirname(vim.fn.fnamemodify(name, ":p"))
+    else
+      dir = vim.uv.cwd()
+    end
   end
-  local found = vim.fs.find("CMakeLists.txt", { upward = true, path = vim.fs.dirname(path) })[1]
+  local found = vim.fs.find("CMakeLists.txt", { upward = true, path = dir })[1]
   if not found then
     return nil
   end
   local root = vim.fs.dirname(found)
   -- subdirectories have their own CMakeLists.txt: go up to the top-level project
   while true do
-    local parent = vim.fs.find("CMakeLists.txt", { upward = true, path = vim.fs.dirname(root) })[1]
+    local up = vim.fs.dirname(root)
+    if up == root then
+      break
+    end
+    local parent = vim.fs.find("CMakeLists.txt", { upward = true, path = up })[1]
     if not parent then
       break
     end
@@ -203,9 +215,14 @@ end
 ---@param tries integer? retries left while neotest is still discovering the test files
 function M.map_tests(tries)
   tries = tries or 20
+  if not pcall(require, "neotest-gtest") then
+    return
+  end
+  -- neotest-gtest's own ctest mapping exists since 2026-10 (that version needs Neovim 0.12);
+  -- older versions get the same mapping from M.map_with_ctest below
   local ok, ctest = pcall(require, "neotest-gtest.executables.ctest")
   if not ok then
-    return
+    ctest = { configure_all = M.map_with_ctest }
   end
   -- neotest must have discovered the test files first: mapping only covers files that are
   -- in its positions tree, so wait until every test file of the project is there
@@ -221,6 +238,136 @@ function M.map_tests(tries)
     end -- last try: map whatever is there
   end
   ctest.configure_all()
+end
+
+local function run(cmd)
+  local okr, r = pcall(function()
+    return vim.system(cmd, { text = true }):wait(30000)
+  end)
+  return okr and r.code == 0 and r.stdout or nil
+end
+
+---compile_commands.json for file: in a parent directory or its build/
+local function find_db(file)
+  for dir in vim.fs.parents(file) do
+    for _, c in ipairs({ dir .. "/compile_commands.json", dir .. "/build/compile_commands.json" }) do
+      if vim.uv.fs_stat(c) then
+        return c
+      end
+    end
+  end
+end
+
+---ctest --show-only: executable -> { "Suite.Test" = true }
+local function ctest_exes(dir)
+  local out = run({ "ctest", "--test-dir", dir, "--show-only=json-v1" })
+  local okj, json = pcall(vim.json.decode, out or "")
+  local exes = {}
+  for _, t in ipairs(okj and json.tests or {}) do
+    local cmd = t.command or {}
+    for _, arg in ipairs(cmd) do
+      local filter = arg:match("^%-%-gtest_filter=(.*)$")
+      if filter and cmd[1] then
+        exes[cmd[1]] = exes[cmd[1]] or {}
+        exes[cmd[1]][filter] = true
+      end
+    end
+  end
+  return exes
+end
+
+---The executable that runs a test file: compile db (file -> target, build dir) + ctest
+---@param tests string[] "Suite.Test" names in the file
+function M.resolve_executable(file, tests, cache)
+  file = vim.uv.fs_realpath(file) or file
+  local db = find_db(file)
+  if not db then
+    return nil, "no compile_commands.json"
+  end
+  if not cache.db[db] then
+    local f = io.open(db)
+    local okj, entries = pcall(vim.json.decode, f and f:read("*a") or "")
+    if f then
+      f:close()
+    end
+    local by_file = {}
+    for _, e in ipairs(okj and entries or {}) do
+      local cmd = e.command or table.concat(e.arguments or {}, " ")
+      local src = e.file:sub(1, 1) == "/" and e.file or (e.directory .. "/" .. e.file)
+      by_file[vim.uv.fs_realpath(src) or src] = { dir = e.directory, target = cmd:match("CMakeFiles/([^/]+)%.dir/") }
+    end
+    cache.db[db] = by_file
+  end
+  local entry = cache.db[db][file]
+  if not entry then
+    return nil, "not in " .. db .. " (build first)"
+  end
+  cache.ctest[entry.dir] = cache.ctest[entry.dir] or ctest_exes(entry.dir)
+  local best, best_hits = nil, -1
+  for exe, known in pairs(cache.ctest[entry.dir]) do
+    local hits = 0
+    for _, t in ipairs(tests) do
+      hits = hits + (known[t] and 1 or 0)
+    end
+    if vim.fs.basename(exe) == entry.target then
+      hits = hits + 0.5 -- same name as the file's CMake target wins a tie
+    end
+    if hits > 0 and hits > best_hits then
+      best, best_hits = exe, hits
+    end
+  end
+  if not best then
+    return nil, "no test executable in " .. entry.dir .. " runs its tests"
+  end
+  return best
+end
+
+---Map every test file in neotest-gtest's trees (for neotest-gtest versions without
+---executables/ctest.lua; same result as its :ConfigureGtestAll)
+function M.map_with_ctest()
+  local okn, neotest = pcall(require, "neotest")
+  local okr, registry = pcall(require, "neotest-gtest.executables.global_registry")
+  local oknio, nio = pcall(require, "nio")
+  if not (okn and okr and oknio) then
+    return
+  end
+  nio.run(function()
+    local prefix = "neotest-gtest:"
+    local cache, mapped, missing = { db = {}, ctest = {} }, 0, {}
+    for _, id in ipairs(neotest.state.adapter_ids()) do
+      if vim.startswith(id, prefix) then
+        local tree = neotest.state.positions(id)
+        local reg = registry:for_dir(id:sub(#prefix + 1))
+        for _, node in (tree and tree:iter_nodes() or function() end) do
+          local data = node:data()
+          if data.type == "file" then
+            local tests = {}
+            for _, child in node:iter_nodes() do
+              local c = child:data()
+              if c.type == "test" then
+                local parts = vim.split(c.id, "::", { plain = true })
+                tests[#tests + 1] = (parts[#parts - 1] or "") .. "." .. parts[#parts]
+              end
+            end
+            local exe, why = M.resolve_executable(data.path, tests, cache)
+            if exe then
+              reg:update_executable(data.path, exe)
+              mapped = mapped + 1
+            else
+              missing[#missing + 1] = vim.fs.basename(data.path) .. ": " .. why
+            end
+          end
+        end
+      end
+    end
+    vim.schedule(function()
+      local msg = ("mapped %d test file%s"):format(mapped, mapped == 1 and "" or "s")
+      if #missing > 0 then
+        msg = msg .. "\nnot mapped: " .. table.concat(missing, "\n  ")
+      end
+      vim.notify(msg, #missing > 0 and vim.log.levels.WARN or vim.log.levels.INFO, { title = "GoogleTest" })
+    end)
+  end)
 end
 
 ---Are all test files of the current project in neotest-gtest's positions tree?
