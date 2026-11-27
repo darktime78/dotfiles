@@ -29,6 +29,11 @@ return {
         require("neotest-gtest").setup({
           debug_adapter = "gdb", -- <leader>td debugs the nearest TEST() in gdb
           history_size = 3,
+          -- search the project's own sources only: without this the build tree is scanned
+          -- too and GoogleTest's own ~2500 tests (build/*/_deps) bury and break the summary
+          filter_dir = function(name, rel_path, root)
+            return require("util.gtest").filter_dir(name, rel_path, root)
+          end,
           -- C in the summary window: pick the executable for the marked tests by hand
           -- (:ConfigureGtestAll there maps all of them through ctest)
           mappings = { configure = "C" },
