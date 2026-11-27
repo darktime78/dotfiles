@@ -9,6 +9,48 @@ local M = {}
 
 local done = {} -- per root: auto-configure / auto-map already tried this session
 
+-- directories that never hold the project's own tests: build trees (GoogleTest's sources
+-- and its 2500 self-tests sit in build/*/_deps), vendored code, tool caches
+local skip_dirs = {
+  build = true, out = true, _deps = true,
+  third_party = true, ["3rdparty"] = true, thirdparty = true, external = true, extern = true,
+  vendor = true, deps = true, subprojects = true, node_modules = true, venv = true,
+}
+
+---neotest discovery filter (neotest-gtest filter_dir): false = don't search this directory
+---@param name string
+---@param rel_path string relative to root
+---@param root string
+function M.filter_dir(name, rel_path, root)
+  if skip_dirs[name] or name:match("^build[-_.]") or name:match("^cmake%-build") then
+    return false
+  end
+  -- a build directory with any other name
+  return vim.uv.fs_stat(root .. "/" .. rel_path .. "/CMakeCache.txt") == nil
+end
+
+local test_ext = { cpp = true, cppm = true, cc = true, cxx = true, ["c++"] = true } -- as neotest-gtest
+
+---The project's GoogleTest files (test_*.cpp / *_test.cpp outside build and vendor dirs)
+---@param root string
+---@return string[]
+function M.test_files(root)
+  local files = {}
+  for name, kind in vim.fs.dir(root, {
+    depth = 8,
+    skip = function(rel)
+      return not rel:match("^%.") and M.filter_dir(vim.fs.basename(rel), rel, root)
+    end,
+  }) do
+    local base = vim.fs.basename(name)
+    local stem, ext = base:match("^(.*)%.([^.]+)$")
+    if kind == "file" and test_ext[ext] and (base:match("^test_") or stem:match("_test$")) then
+      files[#files + 1] = root .. "/" .. name
+    end
+  end
+  return files
+end
+
 ---Project root: the nearest directory with CMakeLists.txt that is not inside another one
 ---@param path string?
 ---@return string?
@@ -160,22 +202,53 @@ end
 ---Map test files to executables (needs a built project: ctest knows the tests then)
 ---@param tries integer? retries left while neotest is still discovering the test files
 function M.map_tests(tries)
-  tries = tries or 5
+  tries = tries or 20
   local ok, ctest = pcall(require, "neotest-gtest.executables.ctest")
   if not ok then
     return
   end
-  -- neotest must have found the test files first (its positions tree)
+  -- neotest must have discovered the test files first: mapping only covers files that are
+  -- in its positions tree, so wait until every test file of the project is there
   local nok, neotest = pcall(require, "neotest")
-  if nok and neotest.state and #neotest.state.adapter_ids() == 0 then
+  if nok and neotest.state and not M.discovered(neotest) then
     if tries > 0 then
       vim.defer_fn(function()
         M.map_tests(tries - 1)
-      end, 1500)
+      end, 1000)
     end
-    return
+    if tries > 1 then
+      return
+    end -- last try: map whatever is there
   end
   ctest.configure_all()
+end
+
+---Are all test files of the current project in neotest-gtest's positions tree?
+function M.discovered(neotest)
+  local root = M.root()
+  local ids = vim.tbl_filter(function(id)
+    return vim.startswith(id, "neotest-gtest:")
+  end, neotest.state.adapter_ids())
+  if #ids == 0 then
+    return false
+  end
+  if not root then
+    return true
+  end
+  for _, file in ipairs(M.test_files(root)) do
+    local real, found = vim.uv.fs_realpath(file) or file, false
+    for _, id in ipairs(ids) do
+      local tree = neotest.state.positions(id)
+      if tree and (tree:get_key(file) or tree:get_key(real)) then
+        found = true
+        break
+      end
+    end
+    if not found then
+      return false
+    end
+  end
+  return true
 end
 
 ---<leader>tg: configure (if needed) + build + map tests

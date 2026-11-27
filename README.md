@@ -288,6 +288,12 @@ errors. `<leader>tg` builds and maps the GoogleTest files to `unit_tests`; after
 usual `<leader>tt` / `<leader>tr` / `<leader>ts` keys run them. Opening a test file of a
 built project maps it by itself. Off: `vim.g.cmake_auto_configure = false`.
 
+The test summary only searches the project's own sources: build trees (`build*/`,
+`cmake-build-*/`, any folder with a `CMakeCache.txt`), `_deps/` and vendored folders
+(`third_party/`, `external/`, …) are skipped, otherwise GoogleTest's own ~2500 tests
+from `build/*/_deps` land in the summary and can't be run. Tests are mapped once neotest
+has found every `tests/*_test.cpp`; if a test still says it has no executable, `<leader>tg`.
+
 ## Local AI (Qwen on this laptop)
 
 arch-local-ai sets up llama.cpp, the models and OpenCode on Arch Linux. With it running
