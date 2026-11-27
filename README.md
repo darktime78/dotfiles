@@ -3,10 +3,11 @@
 What the key can do on Arch Linux, macOS and Windows 11, and scripts that set it up.
 Your passwords keep working everywhere unless you turn them off yourself.
 
-**The scripts don't encrypt anything.** They add the YubiKey as another way to unlock a
-disk that is already encrypted (LUKS2 on Arch, FileVault on macOS) and to log in. An
-unencrypted Arch disk has to be encrypted first (at install time, or with
-`cryptsetup reencrypt --encrypt` from a live USB after a full backup).
+**These scripts don't encrypt anything.** They add the YubiKey as another way to unlock
+a disk that is already encrypted (LUKS2 on Arch, FileVault on macOS) and to log in. For
+Arch, the encrypted disk is made at install time by `arch-disk.sh` (next section). An
+existing unencrypted install can be encrypted in place with `cryptsetup reencrypt
+--encrypt` from a live USB, after a full backup.
 
 ## Get it
 
@@ -46,7 +47,54 @@ Each has its own PIN:
 3. **Keep a session open** while changing login (Arch: a second terminal with `sudo -s`).
 4. NFC is for phones: the same key signs in to accounts on an Android phone or iPhone.
 
-## Arch Linux
+## A new encrypted Arch install (with the YubiKey)
+
+Boot the Arch ISO in UEFI mode, connect to the network (`iwctl` for Wi-Fi), then:
+
+```sh
+curl -LO https://raw.githubusercontent.com/darktime78/dotfiles/master/install/arch-disk.sh
+bash arch-disk.sh                 # 1. wipe a disk, encrypt it, optional YubiKey
+pacstrap -K /mnt base linux linux-firmware          # 2. the base system
+curl -LO https://raw.githubusercontent.com/darktime78/dotfiles/master/install/arch-bootstrap.sh
+bash arch-bootstrap.sh            # 3. everything else, boot set up for the key
+```
+
+**1. `arch-disk.sh`** asks for the disk (you type its name twice; everything on it is
+deleted), the filesystem and whether to add the YubiKey, then makes:
+
+```
+/dev/nvme0n1p1   1 GiB   EFI, FAT32, not encrypted   /mnt/boot   (boot loader, kernels)
+/dev/nvme0n1p2   rest    LUKS2, argon2id, your passphrase
+                 └ /dev/mapper/cryptroot  btrfs (@ @home @log @pkg @snapshots) or ext4   /mnt
+```
+
+- The **passphrase** is the main key and stays valid forever: write it down. At boot the
+  keyboard is US until the system has your layout, so avoid letters that move on it.
+- On an SSD, TRIM is turned on in the LUKS header (`--allow-discards --persistent`).
+- **YubiKey**: plug it in when asked. A new key has no FIDO2 PIN; the script offers to set
+  one (`ykman fido access change-pin`). Then: passphrase, PIN, touch. If that fails, the
+  script goes on without the key; add it later with `yubikey-setup disk`.
+
+**2. `pacstrap`** installs the base system onto `/mnt`.
+
+**3. `arch-bootstrap.sh`** finds the encryption and the YubiKey by itself: systemd
+initramfs with `sd-encrypt`, kernel line `rd.luks.name=…` and, with the key,
+`rd.luks.options=…=fido2-device=auto`, plus `libfido2`, `pam-u2f`, `yubikey-manager`.
+
+**Every boot**: key in → type its PIN, touch it. No key → after ~30 s the passphrase
+prompt. **After the first login**:
+
+```sh
+sudo cryptsetup luksHeaderBackup /dev/nvme0n1p2 --header-backup-file luks-header.img
+# copy luks-header.img to a USB stick: a damaged header loses the data, passphrase or not
+yubikey-setup add-key    # the second YubiKey (strongly recommended)
+yubikey-setup sudo       # and login, if you want (below)
+```
+
+Without the key at install time: install the same way, then after the first boot
+`yubikey-setup pin && yubikey-setup disk` adds it.
+
+## Arch Linux (an installed system)
 
 ```sh
 yubikey-setup pin      # 1. FIDO2 PIN (needed for the disk)
